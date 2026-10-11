@@ -2,6 +2,7 @@
 
 import React from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface KPICardProps {
   label: string;
@@ -10,7 +11,7 @@ export interface KPICardProps {
   delta?: {
     value: string | number;
     trend: "up" | "down" | "neutral";
-    isPositive?: boolean; // e.g. delay down is positive
+    isPositive?: boolean;
     periodLabel?: string;
   };
   icon?: React.ReactNode;
@@ -18,52 +19,59 @@ export interface KPICardProps {
   className?: string;
 }
 
-export function KPICard({ label, value, unit, delta, icon, subtitle, className = "" }: KPICardProps) {
+export function KPICard({ label, value, unit, delta, icon, subtitle, className }: KPICardProps) {
   const getTrendColor = () => {
     if (!delta) return "";
-    if (delta.trend === "neutral") return "text-[var(--text-secondary)]";
+    if (delta.trend === "neutral") return "text-neutral-500";
     const isGood = delta.isPositive !== undefined ? delta.isPositive : delta.trend === "up";
-    return isGood ? "text-[var(--success)]" : "text-[var(--destructive)]";
+    return isGood ? "text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60" : "text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60";
   };
 
   const getTrendIcon = () => {
     if (!delta) return null;
-    if (delta.trend === "up") return <TrendingUp className="h-3.5 w-3.5" />;
-    if (delta.trend === "down") return <TrendingDown className="h-3.5 w-3.5" />;
-    return <Minus className="h-3.5 w-3.5" />;
+    if (delta.trend === "up") return <TrendingUp className="h-3 w-3" />;
+    if (delta.trend === "down") return <TrendingDown className="h-3 w-3" />;
+    return <Minus className="h-3 w-3" />;
   };
 
   return (
     <div
-      className={`flex flex-col p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xs transition-shadow hover:shadow-sm ${className}`}
+      className={cn(
+        "flex flex-col p-5 rounded-2xl border border-neutral-200/80 bg-white text-[#272A30] shadow-2xs transition-all hover:shadow-xs",
+        className
+      )}
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+        <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
           {label}
         </span>
-        {icon && <span className="text-[var(--muted-foreground)]">{icon}</span>}
+        {icon && (
+          <div className="h-8 w-8 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-600">
+            {icon}
+          </div>
+        )}
       </div>
 
       <div className="flex items-baseline gap-1.5 my-1">
-        <span className="text-2xl font-bold font-mono tracking-tight text-[var(--foreground)] tabular-nums">
+        <span className="text-3xl font-bold font-mono tracking-tight text-[#272A30] tabular-nums">
           {value}
         </span>
-        {unit && <span className="text-xs text-[var(--muted-foreground)] font-mono">{unit}</span>}
+        {unit && <span className="text-xs text-neutral-400 font-mono font-medium">{unit}</span>}
       </div>
 
       {(delta || subtitle) && (
-        <div className="flex items-center gap-2 mt-1 text-xs">
+        <div className="flex items-center gap-2 mt-2 text-xs">
           {delta && (
-            <span className={`inline-flex items-center gap-1 font-semibold tabular-nums ${getTrendColor()}`}>
+            <span className={cn("inline-flex items-center gap-1 font-semibold text-[11px] tabular-nums", getTrendColor())}>
               {getTrendIcon()}
               {delta.value}
             </span>
           )}
           {delta?.periodLabel && (
-            <span className="text-[var(--muted-foreground)]">{delta.periodLabel}</span>
+            <span className="text-neutral-400 text-[11px]">{delta.periodLabel}</span>
           )}
           {subtitle && !delta && (
-            <span className="text-[var(--muted-foreground)]">{subtitle}</span>
+            <span className="text-neutral-500 text-xs font-normal">{subtitle}</span>
           )}
         </div>
       )}

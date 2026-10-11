@@ -13,59 +13,40 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
+  // Application is designed in a light tone: cards, tables, inputs are light tone, only small components (buttons, badges) are dark
+  const [theme, setThemeState] = useState<Theme>("light");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const saved = localStorage.getItem("dispatchx-theme") as Theme | null;
-    if (saved && (saved === "light" || saved === "dark" || saved === "system")) {
-      setThemeState(saved);
-    }
+    // Reset and enforce light tone
+    setThemeState("light");
+    setResolvedTheme("light");
+    try {
+      localStorage.setItem("dispatchx-theme", "light");
+    } catch {}
+
+    const root = document.documentElement;
+    root.classList.remove("dark");
+    root.setAttribute("data-theme", "light");
   }, []);
 
-  useEffect(() => {
+  const setTheme = (newTheme: Theme) => {
+    // If user explicitly toggles theme, keep it light tone focused
+    setThemeState(newTheme);
+    try {
+      localStorage.setItem("dispatchx-theme", newTheme);
+    } catch {}
+
     const root = document.documentElement;
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const computeResolvedTheme = () => {
-      if (theme === "system") {
-        return mediaQuery.matches ? "dark" : "light";
-      }
-      return theme;
-    };
-
-    const currentResolved = computeResolvedTheme();
-    setResolvedTheme(currentResolved);
-
-    if (currentResolved === "dark") {
+    if (newTheme === "dark") {
       root.classList.add("dark");
       root.setAttribute("data-theme", "dark");
+      setResolvedTheme("dark");
     } else {
       root.classList.remove("dark");
       root.setAttribute("data-theme", "light");
+      setResolvedTheme("light");
     }
-
-    const listener = () => {
-      if (theme === "system") {
-        const next = mediaQuery.matches ? "dark" : "light";
-        setResolvedTheme(next);
-        if (next === "dark") {
-          root.classList.add("dark");
-          root.setAttribute("data-theme", "dark");
-        } else {
-          root.classList.remove("dark");
-          root.setAttribute("data-theme", "light");
-        }
-      }
-    };
-
-    mediaQuery.addEventListener("change", listener);
-    return () => mediaQuery.removeEventListener("change", listener);
-  }, [theme]);
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem("dispatchx-theme", newTheme);
   };
 
   return (

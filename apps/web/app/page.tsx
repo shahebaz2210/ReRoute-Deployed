@@ -7,7 +7,6 @@ import { KPICard } from "@/components/ui/kpi-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
 import {
   Truck,
   Package,
@@ -15,17 +14,16 @@ import {
   AlertTriangle,
   RotateCw,
   FileSpreadsheet,
-  Volume2,
   Calendar,
   ChevronLeft,
   ChevronRight,
-  PhoneCall,
   CheckCircle2,
   X,
   MapPin,
   ShieldCheck,
 } from "lucide-react";
 import { HandsFreeDisruptionModal } from "@/components/disruptions/hands-free-disruption-modal";
+import { FleetMap, GeoMarker, GeoRoute } from "@/components/map/fleet-map";
 
 interface FleetVehicle {
   id: string;
@@ -47,83 +45,288 @@ export default function ControlRoomPage() {
   const [selectedDate, setSelectedDate] = useState("2026-10-12");
   const [isReplanning, setIsReplanning] = useState(false);
   const [replanSuccess, setReplanSuccess] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // Selected vehicle for details drawer (Category 2 & 4)
   const [selectedVehicle, setSelectedVehicle] = useState<FleetVehicle | null>(null);
 
-  // Customer notification script modal (Category 8)
-  const [customerModalOpen, setCustomerModalOpen] = useState(false);
-  const [notificationSent, setNotificationSent] = useState(false);
-  const [isPlayingCustomerVoice, setIsPlayingCustomerVoice] = useState(false);
-
   // Disruption Detected Voice Reporter Modal (Feature 1: Hands-Free Voice Ingestion)
   const [showDisruptionModal, setShowDisruptionModal] = useState(false);
 
-  // Active Disruption Alert state (Category 2 & 5)
-  const [activeAlert, setActiveAlert] = useState<string | null>(
-    "Road closure detected on Market Street / Industrial Bypass. 3 orders on Truck Beta risk time-window violations."
-  );
-
-  // Dynamic fleet state (Category 2 & 10)
+  // Dynamic fleet state (Pune, Maharashtra Network)
   const [fleet, setFleet] = useState<FleetVehicle[]>([
     {
       id: "VH-001",
-      name: "Truck Alpha (Sprinter 3500)",
-      licensePlate: "SF-789-TX",
+      name: "Truck Alpha (Tata Ultra 1918.T)",
+      licensePlate: "MH-12-TRK-01",
       driverName: "Alex Vance",
       status: "ACTIVE_VEHICLE",
-      capacityWeightKg: 1500,
-      capacityVolumeM3: 14.0,
-      currentWeightKg: 1120,
-      currentVolumeM3: 9.8,
-      nextStop: "Apex BioLabs (#2)",
+      capacityWeightKg: 2500,
+      capacityVolumeM3: 18.0,
+      currentWeightKg: 2120,
+      currentVolumeM3: 14.8,
+      nextStop: "Kothrud Industrial Park (#1)",
       eta: "08:45 AM",
       remainingStops: 3,
     },
     {
       id: "VH-002",
-      name: "Truck Beta (E-Transit)",
-      licensePlate: "SF-104-EQ",
+      name: "Truck Beta (Tata Ace EV)",
+      licensePlate: "MH-12-TRK-02",
       driverName: "Marcus Sterling",
-      status: "DELAYED_ROUTE",
+      status: "ACTIVE_VEHICLE",
       capacityWeightKg: 1200,
-      capacityVolumeM3: 11.5,
+      capacityVolumeM3: 10.5,
       currentWeightKg: 1050,
-      currentVolumeM3: 10.1,
-      nextStop: "Marina Grocers (#3)",
-      eta: "09:55 AM (+25m)",
+      currentVolumeM3: 9.1,
+      nextStop: "Magarpatta Cybercity (#2)",
+      eta: "09:20 AM",
       remainingStops: 4,
     },
     {
       id: "VH-003",
-      name: "Van Gamma (ProMaster)",
-      licensePlate: "SF-552-KL",
+      name: "Van Gamma (Ashok Leyland BADA DOST)",
+      licensePlate: "MH-12-VAN-03",
       driverName: "Elena Rostova",
       status: "ACTIVE_VEHICLE",
       capacityWeightKg: 1800,
-      capacityVolumeM3: 13.0,
+      capacityVolumeM3: 14.0,
       currentWeightKg: 780,
-      currentVolumeM3: 5.4,
-      nextStop: "Mission Culinary (#1)",
+      currentVolumeM3: 6.4,
+      nextStop: "Viman Nagar Distribution Hub (#3)",
       eta: "09:15 AM",
       remainingStops: 2,
     },
     {
       id: "VH-004",
-      name: "Truck Delta (Transit High)",
-      licensePlate: "SF-903-ZZ",
+      name: "Truck Delta (Eicher Pro 3015)",
+      licensePlate: "MH-12-TRK-04",
       driverName: "David Kim",
       status: "IDLE",
-      capacityWeightKg: 1400,
-      capacityVolumeM3: 12.0,
+      capacityWeightKg: 2800,
+      capacityVolumeM3: 19.0,
       currentWeightKg: 0,
       currentVolumeM3: 0,
-      nextStop: "Central Hub Depot",
+      nextStop: "Swargate Central Depot (Standby)",
       eta: "On Standby",
       remainingStops: 0,
     },
   ]);
+
+  // Central Depot: Swargate Multimodal Hub & Depot Center, Pune (18.5018° N, 73.8586° E)
+  const PUNE_DEPOT = {
+    id: "DEPOT-PUNE-SWARGATE",
+    name: "Swargate Central Logistics Hub, Pune",
+    lat: 18.5018,
+    lng: 73.8586,
+  };
+
+  const dashboardGeoMarkers: GeoMarker[] = [
+    // Central Depot in Swargate, Pune
+    {
+      id: "M-DEPOT",
+      type: "DEPOT",
+      lat: PUNE_DEPOT.lat,
+      lng: PUNE_DEPOT.lng,
+      label: "Swargate Central Depot (Pune)",
+      sublabel: "Dispatcher Workplace (18.5018° N, 73.8586° E)",
+      status: "COMPLETED",
+      stopNumber: 0,
+    },
+    // Vehicle 1 Stops (Blue: #2563EB matching route color)
+    {
+      id: "STOP-PN-1",
+      type: "STOP",
+      lat: 18.5074,
+      lng: 73.8077,
+      label: "Kothrud Industrial Park",
+      sublabel: "Order ORD-PN-101 (Cummins India Hub)",
+      orderRef: "ORD-PN-101",
+      color: "#2563EB",
+      stopNumber: 1,
+      status: "DELIVERED",
+    },
+    {
+      id: "STOP-PN-2",
+      type: "STOP",
+      lat: 18.5167,
+      lng: 73.8415,
+      label: "Deccan Gymkhana Commercial Center",
+      sublabel: "Order ORD-PN-102 (Retail Express)",
+      orderRef: "ORD-PN-102",
+      color: "#2563EB",
+      stopNumber: 2,
+      status: "PENDING",
+    },
+    {
+      id: "STOP-PN-3",
+      type: "STOP",
+      lat: 18.5314,
+      lng: 73.8446,
+      label: "Shivaji Nagar Tech Hub",
+      sublabel: "Order ORD-PN-103 (Metro Logistics)",
+      orderRef: "ORD-PN-103",
+      color: "#2563EB",
+      stopNumber: 3,
+      status: "PENDING",
+    },
+    // Vehicle 1 Live Pin (Blue: #2563EB matching route color)
+    {
+      id: "V-TRK-01",
+      type: "VEHICLE",
+      lat: 18.5120,
+      lng: 73.8240,
+      label: "Truck Alpha (MH-12-TRK-01)",
+      vehicleCode: "TRK-01",
+      color: "#2563EB",
+      status: "ACTIVE_VEHICLE",
+    },
+
+    // Vehicle 2 Stops (Emerald Green: #10B981 matching route color)
+    {
+      id: "STOP-PN-4",
+      type: "STOP",
+      lat: 18.5089,
+      lng: 73.9259,
+      label: "Hadapsar Industrial Complex",
+      sublabel: "Order ORD-PN-104 (Serum Institute Cargo)",
+      orderRef: "ORD-PN-104",
+      color: "#10B981",
+      stopNumber: 1,
+      status: "DELIVERED",
+    },
+    {
+      id: "STOP-PN-5",
+      type: "STOP",
+      lat: 18.5147,
+      lng: 73.9298,
+      label: "Magarpatta Cybercity",
+      sublabel: "Order ORD-PN-105 (Accenture Tech Hub)",
+      orderRef: "ORD-PN-105",
+      color: "#10B981",
+      stopNumber: 2,
+      status: "PENDING",
+    },
+    {
+      id: "STOP-PN-6",
+      type: "STOP",
+      lat: 18.5515,
+      lng: 73.9349,
+      label: "Kharadi EON Free Zone",
+      sublabel: "Order ORD-PN-106 (Global Infotech)",
+      orderRef: "ORD-PN-106",
+      color: "#10B981",
+      stopNumber: 3,
+      status: "PENDING",
+    },
+    // Vehicle 2 Live Pin (Green: #10B981 matching route color)
+    {
+      id: "V-TRK-02",
+      type: "VEHICLE",
+      lat: 18.5110,
+      lng: 73.9270,
+      label: "Truck Beta (MH-12-TRK-02)",
+      vehicleCode: "TRK-02",
+      color: "#10B981",
+      status: "ACTIVE_VEHICLE",
+    },
+
+    // Vehicle 3 Stops (Purple: #8B5CF6 matching route color)
+    {
+      id: "STOP-PN-7",
+      type: "STOP",
+      lat: 18.5284,
+      lng: 73.8739,
+      label: "Pune Railway Freight Yard",
+      sublabel: "Order ORD-PN-107 (Central Rail Cargo)",
+      orderRef: "ORD-PN-107",
+      color: "#8B5CF6",
+      stopNumber: 1,
+      status: "DELIVERED",
+    },
+    {
+      id: "STOP-PN-8",
+      type: "STOP",
+      lat: 18.5529,
+      lng: 73.8796,
+      label: "Yerawada Business Bay",
+      sublabel: "Order ORD-PN-108 (Commerzone IT)",
+      orderRef: "ORD-PN-108",
+      color: "#8B5CF6",
+      stopNumber: 2,
+      status: "PENDING",
+    },
+    {
+      id: "STOP-PN-9",
+      type: "STOP",
+      lat: 18.5679,
+      lng: 73.9143,
+      label: "Viman Nagar Distribution Hub",
+      sublabel: "Order ORD-PN-109 (Airport Logistics)",
+      orderRef: "ORD-PN-109",
+      color: "#8B5CF6",
+      stopNumber: 3,
+      status: "PENDING",
+    },
+    // Vehicle 3 Live Pin (Purple: #8B5CF6 matching route color)
+    {
+      id: "V-VAN-03",
+      type: "VEHICLE",
+      lat: 18.5400,
+      lng: 73.8760,
+      label: "Van Gamma (MH-12-VAN-03)",
+      vehicleCode: "VAN-03",
+      color: "#8B5CF6",
+      status: "ACTIVE_VEHICLE",
+    },
+  ];
+
+  const dashboardGeoRoutes: GeoRoute[] = [
+    {
+      id: "R-TRK-01",
+      vehicleCode: "TRK-01",
+      driverName: "Alex Vance",
+      color: "#2563EB",
+      coordinates: [
+        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
+        [18.5074, 73.8077],
+        [18.5167, 73.8415],
+        [18.5314, 73.8446],
+        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
+      ],
+      distanceKm: 28.4,
+      stopsCount: 3,
+    },
+    {
+      id: "R-TRK-02",
+      vehicleCode: "TRK-02",
+      driverName: "Marcus Sterling",
+      color: "#10B981",
+      coordinates: [
+        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
+        [18.5089, 73.9259],
+        [18.5147, 73.9298],
+        [18.5515, 73.9349],
+        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
+      ],
+      distanceKm: 34.2,
+      stopsCount: 3,
+    },
+    {
+      id: "R-VAN-03",
+      vehicleCode: "VAN-03",
+      driverName: "Elena Rostova",
+      color: "#8B5CF6",
+      coordinates: [
+        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
+        [18.5284, 73.8739],
+        [18.5529, 73.8796],
+        [18.5679, 73.9143],
+        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
+      ],
+      distanceKm: 31.6,
+      stopsCount: 3,
+    },
+  ];
 
   // Load real backend fleet on mount if available
   useEffect(() => {
@@ -159,72 +362,6 @@ export default function ControlRoomPage() {
     setSelectedDate(cur.toISOString().split("T")[0]);
   };
 
-  // ElevenLabs / Web Speech audio incident briefing (Category 5 & 8)
-  const playAudioBriefing = async () => {
-    if (!activeAlert) return;
-    setIsPlayingAudio(true);
-    const textToSpeak = `Dispatcher alert: ${activeAlert}. Recommended action: re-sequence stop ORD 9902 via Mission Street corridor.`;
-
-    try {
-      const res = await fetch("/api/v1/voice/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: textToSpeak }),
-      });
-
-      if (res.headers.get("content-type")?.includes("audio/mpeg")) {
-        const blob = await res.blob();
-        const audio = new Audio(URL.createObjectURL(blob));
-        audio.onended = () => setIsPlayingAudio(false);
-        audio.play();
-        return;
-      }
-    } catch {
-      // Fallback
-    }
-
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.onend = () => setIsPlayingAudio(false);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setIsPlayingAudio(false);
-    }
-  };
-
-  // Play customer phone call preview (Category 8)
-  const playCustomerVoicePreview = async () => {
-    setIsPlayingCustomerVoice(true);
-    const scriptText =
-      "Hello Marina Grocers, this is an automated dispatch update from DispatchX. Due to an emergency road closure on Market Street, your delivery for order ORD-9902 has been rescheduled to 9:55 AM by driver Marcus Sterling. Thank you for your patience.";
-
-    try {
-      const res = await fetch("/api/v1/voice/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: scriptText }),
-      });
-
-      if (res.headers.get("content-type")?.includes("audio/mpeg")) {
-        const blob = await res.blob();
-        const audio = new Audio(URL.createObjectURL(blob));
-        audio.onended = () => setIsPlayingCustomerVoice(false);
-        audio.play();
-        return;
-      }
-    } catch {
-      // Fallback
-    }
-
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(scriptText);
-      utterance.onend = () => setIsPlayingCustomerVoice(false);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setIsPlayingCustomerVoice(false);
-    }
-  };
-
   // Re-optimization Trigger (Category 6)
   const handleReoptimize = async () => {
     setIsReplanning(true);
@@ -245,26 +382,61 @@ export default function ControlRoomPage() {
       key: "id",
       header: "Vehicle ID",
       sortable: true,
-      render: (row) => (
-        <button
-          onClick={() => setSelectedVehicle(row)}
-          className="font-mono font-bold text-primary hover:underline text-left"
-        >
-          {row.id}
-        </button>
-      ),
+      render: (row) => {
+        const vehicleColor =
+          row.id === "VH-001" ? "#2563EB" :
+          row.id === "VH-002" ? "#10B981" :
+          row.id === "VH-003" ? "#8B5CF6" : "#F59E0B";
+
+        return (
+          <div className="flex items-center gap-2">
+            <span
+              className="w-3 h-3 rounded-full shrink-0 shadow-2xs border border-white"
+              style={{ backgroundColor: vehicleColor }}
+              title={`Matching route color: ${vehicleColor}`}
+            />
+            <button
+              onClick={() => setSelectedVehicle(row)}
+              className="font-mono font-bold hover:underline text-left text-xs"
+              style={{ color: vehicleColor }}
+            >
+              {row.id}
+            </button>
+          </div>
+        );
+      },
     },
     {
       key: "name",
       header: "Vehicle & Driver",
-      render: (row) => (
-        <div>
-          <div className="font-semibold text-foreground">{row.name}</div>
-          <div className="text-xs text-muted">
-            Driver: <span className="font-medium text-foreground">{row.driverName}</span> • Plate: {row.licensePlate}
+      render: (row) => {
+        const vehicleColor =
+          row.id === "VH-001" || row.licensePlate?.includes("TRK-01") || row.name?.includes("TRK-01") || row.name?.includes("Alpha")
+            ? "#2563EB"
+            : row.id === "VH-002" || row.licensePlate?.includes("TRK-02") || row.name?.includes("TRK-02") || row.name?.includes("Beta")
+            ? "#10B981"
+            : row.id === "VH-003" || row.licensePlate?.includes("VAN-03") || row.name?.includes("VAN-03") || row.name?.includes("Gamma")
+            ? "#8B5CF6"
+            : "#F59E0B";
+
+        return (
+          <div className="flex items-start gap-2.5">
+            <div
+              className="p-1.5 rounded-lg text-white shrink-0 mt-0.5 shadow-2xs"
+              style={{ backgroundColor: vehicleColor }}
+            >
+              <Truck className="h-3.5 w-3.5" />
+            </div>
+            <div>
+              <div className="font-semibold text-foreground text-xs">{row.name}</div>
+              <div className="text-[11px] text-muted">
+                Driver: <span className="font-medium text-foreground">{row.driverName}</span> • Plate:{" "}
+                <span className="font-mono font-bold text-foreground">{row.licensePlate}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "status",
@@ -385,43 +557,6 @@ export default function ControlRoomPage() {
           </div>
         )}
 
-        {/* Active Disruption Banner with Audio Incident Briefing & Customer Call Trigger (Category 2, 5, 8) */}
-        {activeAlert && (
-          <Alert
-            variant="warning"
-            title="Active Operational Disruption Detected"
-            onClose={() => setActiveAlert(null)}
-          >
-            {activeAlert}
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <Link href="/plans/PLAN-SF-2026-10-12/compare">
-                <Button size="sm" variant="danger" className="font-semibold">
-                  Review & Replan Impact
-                </Button>
-              </Link>
-              <Button
-                size="sm"
-                variant="outline"
-                leftIcon={<Volume2 className="h-3.5 w-3.5 text-primary" />}
-                onClick={playAudioBriefing}
-                disabled={isPlayingAudio}
-                className="text-xs"
-              >
-                {isPlayingAudio ? "Playing Audio..." : "🔊 Play Voice Incident Briefing"}
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                leftIcon={<PhoneCall className="h-3.5 w-3.5 text-blue-600" />}
-                onClick={() => setCustomerModalOpen(true)}
-                className="text-xs"
-              >
-                Customer ETA Call Script
-              </Button>
-            </div>
-          </Alert>
-        )}
-
         {/* Real-time KPI Matrix (Category 2) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
@@ -458,15 +593,65 @@ export default function ControlRoomPage() {
 
           <KPICard
             label="Active Disruptions"
-            value="1"
-            unit="INCIDENT"
-            icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
+            value="0"
+            unit="INCIDENTS"
+            icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
             delta={{
-              value: "Market St closure",
-              trend: "down",
-              isPositive: false,
-              periodLabel: "Truck Beta affected",
+              value: "Normal Operations",
+              trend: "up",
+              periodLabel: "all routes clear",
             }}
+          />
+        </div>
+
+        {/* Active Fleet Live GPS Tracking & Route Map (Central Depot: Swargate, Pune) */}
+        <div className="bg-card border border-border rounded-xl p-4 shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <h2 className="text-base font-bold text-foreground">
+                  Active Fleet Live GPS & Route Tracking Map
+                </h2>
+                <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  📍 Central Depot: Swargate, Pune (18.5018° N, 73.8586° E)
+                </span>
+              </div>
+              <p className="text-xs text-muted mt-1">
+                Real-time active vehicle telemetry, delivery stop sequences, and color-matched route corridors radiating from Swargate Multimodal Central Depot.
+              </p>
+            </div>
+
+            {/* Color-matched Fleet Route Badges & Legends */}
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]" />
+                <Truck className="w-3.5 h-3.5 text-[#2563EB]" />
+                <span>TRK-01 (Truck Alpha)</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                <Truck className="w-3.5 h-3.5 text-[#10B981]" />
+                <span>TRK-02 (Truck Beta)</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6]" />
+                <Truck className="w-3.5 h-3.5 text-[#8B5CF6]" />
+                <span>VAN-03 (Van Gamma)</span>
+              </div>
+            </div>
+          </div>
+
+          <FleetMap
+            geoMarkers={dashboardGeoMarkers}
+            geoRoutes={dashboardGeoRoutes}
+            centerLat={18.5018}
+            centerLng={73.8586}
+            zoom={12}
+            className="w-full h-[460px] rounded-lg border border-border overflow-hidden"
           />
         </div>
 
@@ -513,7 +698,7 @@ export default function ControlRoomPage() {
 
         {/* Vehicle Details Drawer/Modal (Category 2, 4, 10) */}
         {selectedVehicle && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-[#2D3139]/35 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-card border border-border rounded-xl max-w-lg w-full p-6 shadow-xl space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-border">
                 <div className="flex items-center gap-3">
@@ -589,76 +774,7 @@ export default function ControlRoomPage() {
           </div>
         )}
 
-        {/* Customer ETA Notification Script Modal (Category 8) */}
-        {customerModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-card border border-border rounded-xl max-w-lg w-full p-6 shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <PhoneCall className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-bold text-foreground">Customer Call Script & Voice Preview</h3>
-                </div>
-                <button
-                  onClick={() => setCustomerModalOpen(false)}
-                  className="text-muted hover:text-foreground text-sm font-bold p-1"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
 
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-muted/30 border border-border space-y-1 text-xs">
-                  <div className="flex justify-between font-mono">
-                    <span className="text-muted">Target Customer:</span>
-                    <span className="font-bold text-foreground">Marina Grocers (ORD-9902)</span>
-                  </div>
-                  <div className="flex justify-between font-mono">
-                    <span className="text-muted">Revised ETA:</span>
-                    <span className="font-bold text-amber-600">09:55 AM (+25m Delay)</span>
-                  </div>
-                  <div className="flex justify-between font-mono">
-                    <span className="text-muted">Assigned Driver:</span>
-                    <span className="font-bold text-foreground">Marcus Sterling (Truck Beta)</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-muted tracking-wider uppercase block mb-1">
-                    Generated Spoken Call Script (ElevenLabs TTS)
-                  </label>
-                  <div className="p-3 rounded-lg bg-background border border-border text-xs text-foreground leading-relaxed italic">
-                    "Hello Marina Grocers, this is an automated dispatch update from DispatchX. Due to an emergency road closure on Market Street, your delivery for order ORD-9902 has been rescheduled to 9:55 AM by driver Marcus Sterling. Thank you for your patience."
-                  </div>
-                </div>
-
-                {notificationSent && (
-                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Automated Voice & SMS notification sent successfully to customer!
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3 pt-3">
-                <Button
-                  variant="outline"
-                  onClick={playCustomerVoicePreview}
-                  disabled={isPlayingCustomerVoice}
-                  className="w-1/2 text-xs"
-                >
-                  {isPlayingCustomerVoice ? "Playing Voice..." : "🔊 Play Voice Preview"}
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => setNotificationSent(true)}
-                  className="w-1/2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                >
-                  Dispatch Call & SMS
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Hands-Free Voice Disruption Reporter Modal (Feature 1: Inbound) */}
         <HandsFreeDisruptionModal

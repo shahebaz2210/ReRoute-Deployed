@@ -1,246 +1,223 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
   color-scheme: light;
 
-  /* Canvas & Surfaces (Light) */
-  --background: #F8FAFC;
-  --surface: #FFFFFF;
-  --surface-secondary: #F1F5F9;
-  --surface-elevated: #FFFFFF;
-  --card: #FFFFFF;
+  /* Canvas & Surfaces: Grey, Dark Grey, White Minimalist Palette */
+  --background: #F4F4F0;              /* Soft warm light stone/grey canvas */
+  --surface: #FFFFFF;                 /* Crisp white card surface */
+  --surface-secondary: #EBEBE6;       /* Warm light grey for pill tabs & inner panels */
+  --surface-elevated: #FFFFFF;        /* Top bars, floating modals */
+  --card: #FFFFFF;                    /* White card background */
+  --card-dark: #2D3139;               /* Refined dark grey accent card */
+  --card-dark-foreground: #FFFFFF;
   --popover: #FFFFFF;
   --surface-input: #FFFFFF;
-  --surface-hover: #EEF2F7;
+  --surface-hover: #ECECE7;
 
-  /* Typography */
-  --foreground: #0F172A;
-  --text-secondary: #475569;
-  --muted-foreground: #526179;
-  --text-disabled: #94A3B8;
+  /* Typography: Little dark grey instead of extreme pitch black */
+  --foreground: #272A30;              /* Refined dark grey text */
+  --text-secondary: #5A5E69;          /* Medium slate grey */
+  --muted-foreground: #737885;        /* Neutral subtle grey */
+  --text-disabled: #A2A7B5;
   --text-inverse: #FFFFFF;
-  --text-link: #1D4ED8;
+  --text-link: #2D3139;
 
-  /* Brand Accents */
-  --primary: #2563EB;
-  --primary-foreground: #FFFFFF;
-  --primary-hover: #1D4ED8;
-  --primary-active: #1E40AF;
-  --secondary: #DBEAFE;
-  --secondary-foreground: #1E3A8A;
-  --accent: #0F766E;
+  /* Brand Accents: Little dark grey instead of extreme black */
+  --primary: #2D3139;                 /* Little dark grey for primary buttons & active states */
+  --primary-foreground: #FFFFFF;      /* Crisp white text */
+  --primary-hover: #3E434E;           /* Soft dark grey hover */
+  --primary-active: #23262D;
+  --secondary: #F2F2EE;               /* Light grey subtle badge/pill */
+  --secondary-foreground: #2D3139;
+  --accent: #3A3E47;
   --accent-foreground: #FFFFFF;
-  --ring: #2563EB;
+  --ring: #4B5160;
 
-  /* Semantic Status Fills & Subtles */
-  --success: #15803D;
+  /* Delivery Complications: RED, GREEN, YELLOW (User specified) */
+  --success: #16A34A;                 /* Emerald Green (Kept / On-time / Active) */
   --success-foreground: #FFFFFF;
   --success-subtle: #DCFCE7;
-  --success-subtle-foreground: #166534;
+  --success-subtle-foreground: #15803D;
   --success-border: #86EFAC;
 
-  --warning: #B45309;
+  --warning: #D97706;                 /* Warm Amber/Yellow (Moved / Delay / Waiting) */
   --warning-foreground: #FFFFFF;
   --warning-subtle: #FEF3C7;
-  --warning-subtle-foreground: #92400E;
+  --warning-subtle-foreground: #B45309;
   --warning-border: #FCD34D;
 
-  --destructive: #DC2626;
+  --destructive: #DC2626;             /* Crimson Red (Broken / Breakdown / Overload) */
   --destructive-foreground: #FFFFFF;
   --destructive-subtle: #FEE2E2;
-  --destructive-subtle-foreground: #991B1B;
+  --destructive-subtle-foreground: #B91C1C;
   --destructive-border: #FCA5A5;
 
-  --info: #0369A1;
-  --info-foreground: #FFFFFF;
-  --info-subtle: #E0F2FE;
-  --info-subtle-foreground: #075985;
-  --info-border: #7DD3FC;
-
-  --pending: #475569;
-  --pending-foreground: #FFFFFF;
-  --pending-subtle: #F1F5F9;
-  --pending-subtle-foreground: #475569;
-  --pending-border: #CBD5E1;
-
-  --neutral: #64748B;
-  --neutral-foreground: #FFFFFF;
-  --neutral-subtle: #E2E8F0;
-  --neutral-subtle-foreground: #334155;
-  --neutral-border: #CBD5E1;
-
-  /* Status Specific Badges (Design §5) */
-  --status-delivered: #166534;
+  /* Status Specific Badges */
+  --status-delivered: #15803D;
   --status-delivered-bg: #DCFCE7;
   --status-delivered-border: #86EFAC;
 
-  --status-pending: #475569;
-  --status-pending-bg: #F1F5F9;
-  --status-pending-border: #CBD5E1;
+  --status-in-transit: #1D4ED8;
+  --status-in-transit-bg: #EFF6FF;
+  --status-in-transit-border: #BFDBFE;
 
-  --status-failed: #991B1B;
+  --status-pending: #71717A;
+  --status-pending-bg: #F4F4F5;
+  --status-pending-border: #E4E4E7;
+
+  --status-canceled: #64748B;
+  --status-canceled-bg: #F1F5F9;
+  --status-canceled-border: #CBD5E1;
+
+  --status-failed: #B91C1C;
   --status-failed-bg: #FEE2E2;
   --status-failed-border: #FCA5A5;
 
-  --status-active-vehicle: #1D4ED8;
-  --status-active-vehicle-bg: #DBEAFE;
-  --status-active-vehicle-border: #93C5FD;
+  --status-active-vehicle: #2D3139;
+  --status-active-vehicle-bg: #F4F4F5;
+  --status-active-vehicle-border: #E4E4E7;
 
-  --status-delayed-route: #92400E;
+  --status-delayed-route: #B45309;
   --status-delayed-route-bg: #FEF3C7;
   --status-delayed-route-border: #FCD34D;
 
-  --status-disruption: #991B1B;
+  --status-disruption: #B91C1C;
   --status-disruption-bg: #FEE2E2;
   --status-disruption-border: #FCA5A5;
 
-  --status-awaiting-approval: #6D28D9;
-  --status-awaiting-approval-bg: #EDE9FE;
-  --status-awaiting-approval-border: #DDD6FE;
+  --status-awaiting-approval: #B45309;
+  --status-awaiting-approval-bg: #FEF3C7;
+  --status-awaiting-approval-border: #FCD34D;
 
-  --status-approved-replan: #0F766E;
-  --status-approved-replan-bg: #CCFBF1;
-  --status-approved-replan-border: #5EEAD4;
+  --status-approved-replan: #15803D;
+  --status-approved-replan-bg: #DCFCE7;
+  --status-approved-replan-border: #86EFAC;
 
-  --status-kept: #166534;
+  --status-kept: #15803D;
   --status-kept-bg: #DCFCE7;
   --status-kept-border: #86EFAC;
 
-  --status-moved: #1D4ED8;
-  --status-moved-bg: #DBEAFE;
-  --status-moved-border: #93C5FD;
+  --status-moved: #B45309;
+  --status-moved-bg: #FEF3C7;
+  --status-moved-border: #FCD34D;
 
-  --status-broken: #C2410C;
-  --status-broken-bg: #FFEDD5;
-  --status-broken-border: #FDBA74;
+  --status-broken: #B91C1C;
+  --status-broken-bg: #FEE2E2;
+  --status-broken-border: #FCA5A5;
 
-  --status-unassigned: #C2410C;
-  --status-unassigned-bg: #FFEDD5;
-  --status-unassigned-border: #FDBA74;
+  --status-unassigned: #B91C1C;
+  --status-unassigned-bg: #FEE2E2;
+  --status-unassigned-border: #FCA5A5;
 
   /* Borders & Dividers */
-  --border-subtle: #E2E8F0;
-  --border: #CBD5E1;
-  --border-strong: #94A3B8;
-  --input: #7A8AA0;
-  --border-active: #2563EB;
-  --divider: #E8EDF3;
+  --border-subtle: #EEEEEC;
+  --border: #E4E4E0;
+  --border-strong: #D4D4CE;
+  --input: #E4E4E0;
+  --border-active: #3E434E;
+  --divider: #ECECE7;
 
   /* Map Specific */
-  --map-canvas: #EAF0F6;
-  --map-edge: #B6C2D2;
-  --map-node: #64748B;
+  --map-canvas: #EBEBE7;
+  --map-edge: #D4D4CE;
+  --map-node: #71717A;
 
   /* Overlay */
-  --overlay: rgba(15, 23, 42, 0.5);
+  --overlay: rgba(20, 20, 22, 0.6);
 
-  /* Shadows */
+  /* Shadows (Soft organic elevation from image) */
   --shadow-0: none;
-  --shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.06), inset 0 1px 0 0 rgb(255 255 255 / 0.6);
-  --shadow-2: 0 2px 4px -1px rgb(15 23 42 / 0.08), 0 1px 2px 0 rgb(15 23 42 / 0.06);
-  --shadow-3: 0 8px 16px -4px rgb(15 23 42 / 0.12), 0 2px 4px -2px rgb(15 23 42 / 0.08);
-  --shadow-popover: 0 8px 24px -6px rgb(15 23 42 / 0.16), 0 0 0 1px rgb(15 23 42 / 0.04);
-  --shadow-modal: 0 20px 40px -12px rgb(15 23 42 / 0.24), 0 0 0 1px rgb(15 23 42 / 0.04);
-  --shadow-map-control: 0 2px 6px 0 rgb(15 23 42 / 0.18), 0 0 0 1px rgb(15 23 42 / 0.06);
+  --shadow-1: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  --shadow-2: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-3: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-popover: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-card: 0 2px 10px 0 rgba(0, 0, 0, 0.03);
 
   /* Layout */
   --sidebar-width: 15rem;            /* 240px */
-  --sidebar-width-collapsed: 4rem;   /* 64px */
-  --header-height: 3.5rem;           /* 56px */
+  --sidebar-width-collapsed: 4.5rem; /* 72px */
+  --header-height: 3.75rem;          /* 60px */
 
-  /* Radius */
-  --radius-sm: 0.25rem;              /* 4px */
-  --radius-md: 0.375rem;             /* 6px */
-  --radius-lg: 0.5rem;               /* 8px */
-  --radius-xl: 0.75rem;              /* 12px */
+  /* Radius (Generous rounded corners inspired by image) */
+  --radius-sm: 0.375rem;             /* 6px */
+  --radius-md: 0.625rem;             /* 10px */
+  --radius-lg: 0.875rem;             /* 14px */
+  --radius-xl: 1rem;                 /* 16px */
+  --radius-2xl: 1.25rem;             /* 20px */
   --radius-full: 9999px;
 }
 
 .dark, [data-theme="dark"] {
   color-scheme: dark;
 
-  /* Canvas & Surfaces (Dark - Slate Precision) */
-  --background: #0B1120;
-  --surface: #0F172A;
-  --surface-secondary: #151F33;
-  --surface-elevated: #1A2540;
-  --card: #121B31;
-  --popover: #1A2540;
-  --surface-input: #0B1426;
-  --surface-hover: #1E293B;
+  /* Canvas & Surfaces (Dark Monochrome) */
+  --background: #0E0E10;              /* Deep black canvas */
+  --surface: #18181B;                 /* Deep obsidian cards */
+  --surface-secondary: #222226;       /* Graphite inner panels */
+  --surface-elevated: #1C1C20;        /* Elevated headers/modals */
+  --card: #18181B;
+  --card-dark: #000000;
+  --card-dark-foreground: #FFFFFF;
+  --popover: #1C1C20;
+  --surface-input: #141416;
+  --surface-hover: #27272A;
 
   /* Typography */
-  --foreground: #F1F5F9;
-  --text-secondary: #CBD5E1;
-  --muted-foreground: #94A3B8;
-  --text-disabled: #64748B;
-  --text-inverse: #0B1120;
-  --text-link: #93C5FD;
+  --foreground: #F4F4F5;
+  --text-secondary: #A1A1AA;
+  --muted-foreground: #71717A;
+  --text-disabled: #52525B;
+  --text-inverse: #09090B;
+  --text-link: #FFFFFF;
 
-  /* Brand Accents */
-  --primary: #3B82F6;
-  --primary-foreground: #0B1120;
-  --primary-hover: #60A5FA;
-  --primary-active: #93C5FD;
-  --secondary: #1E293B;
-  --secondary-foreground: #93C5FD;
-  --accent: #14B8A6;
-  --accent-foreground: #0B1120;
-  --ring: #3B82F6;
+  /* Primary (Crisp White on Dark) */
+  --primary: #F4F4F5;
+  --primary-foreground: #09090B;
+  --primary-hover: #FFFFFF;
+  --primary-active: #E4E4E7;
+  --secondary: #27272A;
+  --secondary-foreground: #F4F4F5;
+  --accent: #3F3F46;
+  --accent-foreground: #FFFFFF;
+  --ring: #F4F4F5;
 
-  /* Semantic Status Fills & Subtles */
+  /* Red, Green, Yellow Complications (Dark Mode) */
   --success: #22C55E;
-  --success-foreground: #0B1120;
+  --success-foreground: #052E16;
   --success-subtle: #052E16;
   --success-subtle-foreground: #86EFAC;
   --success-border: #166534;
 
   --warning: #F59E0B;
-  --warning-foreground: #0B1120;
+  --warning-foreground: #451A03;
   --warning-subtle: #451A03;
   --warning-subtle-foreground: #FDE68A;
   --warning-border: #92400E;
 
   --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
+  --destructive-foreground: #450A0A;
   --destructive-subtle: #450A0A;
   --destructive-subtle-foreground: #FCA5A5;
   --destructive-border: #991B1B;
 
-  --info: #0EA5E9;
-  --info-foreground: #0B1120;
-  --info-subtle: #082F49;
-  --info-subtle-foreground: #BAE6FD;
-  --info-border: #075985;
-
-  --pending: #94A3B8;
-  --pending-foreground: #0B1120;
-  --pending-subtle: #1E293B;
-  --pending-subtle-foreground: #CBD5E1;
-  --pending-border: #334155;
-
-  --neutral: #94A3B8;
-  --neutral-foreground: #0B1120;
-  --neutral-subtle: #1E293B;
-  --neutral-subtle-foreground: #CBD5E1;
-  --neutral-border: #334155;
-
-  /* Status Specific Badges (Dark Mode) */
   --status-delivered: #86EFAC;
   --status-delivered-bg: #052E16;
   --status-delivered-border: #166534;
 
-  --status-pending: #CBD5E1;
-  --status-pending-bg: #1E293B;
-  --status-pending-border: #334155;
+  --status-pending: #A1A1AA;
+  --status-pending-bg: #27272A;
+  --status-pending-border: #3F3F46;
 
   --status-failed: #FCA5A5;
   --status-failed-bg: #450A0A;
   --status-failed-border: #991B1B;
 
-  --status-active-vehicle: #93C5FD;
-  --status-active-vehicle-bg: #1E293B;
-  --status-active-vehicle-border: #1E40AF;
+  --status-active-vehicle: #F4F4F5;
+  --status-active-vehicle-bg: #27272A;
+  --status-active-vehicle-border: #3F3F46;
 
   --status-delayed-route: #FDE68A;
   --status-delayed-route-bg: #451A03;
@@ -250,42 +227,42 @@
   --status-disruption-bg: #450A0A;
   --status-disruption-border: #991B1B;
 
-  --status-awaiting-approval: #C4B5FD;
-  --status-awaiting-approval-bg: #2E1065;
-  --status-awaiting-approval-border: #5B21B6;
+  --status-awaiting-approval: #FDE68A;
+  --status-awaiting-approval-bg: #451A03;
+  --status-awaiting-approval-border: #92400E;
 
-  --status-approved-replan: #5EEAD4;
-  --status-approved-replan-bg: #042F2E;
-  --status-approved-replan-border: #115E59;
+  --status-approved-replan: #86EFAC;
+  --status-approved-replan-bg: #052E16;
+  --status-approved-replan-border: #166534;
 
   --status-kept: #86EFAC;
   --status-kept-bg: #052E16;
   --status-kept-border: #166534;
 
-  --status-moved: #93C5FD;
-  --status-moved-bg: #1E293B;
-  --status-moved-border: #1E40AF;
+  --status-moved: #FDE68A;
+  --status-moved-bg: #451A03;
+  --status-moved-border: #92400E;
 
-  --status-broken: #FDBA74;
-  --status-broken-bg: #431407;
-  --status-broken-border: #9A3412;
+  --status-broken: #FCA5A5;
+  --status-broken-bg: #450A0A;
+  --status-broken-border: #991B1B;
 
-  --status-unassigned: #FDBA74;
-  --status-unassigned-bg: #431407;
-  --status-unassigned-border: #9A3412;
+  --status-unassigned: #FCA5A5;
+  --status-unassigned-bg: #450A0A;
+  --status-unassigned-border: #991B1B;
 
   /* Borders & Dividers */
-  --border-subtle: #1E293B;
-  --border: #334155;
-  --border-strong: #475569;
-  --input: #475569;
-  --border-active: #3B82F6;
-  --divider: #1E293B;
+  --border-subtle: #202024;
+  --border: #27272A;
+  --border-strong: #3F3F46;
+  --input: #27272A;
+  --border-active: #F4F4F5;
+  --divider: #202024;
 
   /* Map Specific */
-  --map-canvas: #0B1120;
-  --map-edge: #334155;
-  --map-node: #64748B;
+  --map-canvas: #0E0E10;
+  --map-edge: #27272A;
+  --map-node: #71717A;
 
   /* Overlay */
   --overlay: rgba(0, 0, 0, 0.75);
@@ -294,11 +271,44 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 code, kbd, samp, pre {
   font-family: var(--font-mono), monospace;
+}
+
+/* Rounded Cards & Surfaces */
+.theme-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-card);
+  transition: all 0.2s ease-in-out;
+}
+
+.theme-card-dark {
+  background-color: var(--card-dark);
+  color: var(--card-dark-foreground);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2);
+}
+
+/* Sleek minimalist scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
 }

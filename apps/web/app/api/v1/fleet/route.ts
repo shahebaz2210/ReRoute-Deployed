@@ -1,70 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, vehicles } from "@dispatchx/database";
-import { eq } from "drizzle-orm";
+import { FLEET_UNITS, plansStore } from "@/lib/plans/store";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    let vehicleList: any[] = [];
-    if (process.env.DATABASE_URL) {
-      try {
-        vehicleList = await db.select().from(vehicles);
-        if (status) {
-          vehicleList = vehicleList.filter((v) => v.status === status);
-        }
-      } catch (err) {
-        console.warn("DB query fallback to seed fixtures for fleet:", err);
-      }
-    }
+    // Retrieve active plan if any
+    const allStoredPlans = Array.from(plansStore.values());
+    const activePlan = allStoredPlans.length > 0 ? allStoredPlans[allStoredPlans.length - 1] : null;
 
-    // Default high-fidelity vehicle fleet if DB not yet seeded in active runtime
-    if (vehicleList.length === 0) {
-      vehicleList = [
-        {
-          id: "019488a0-0000-7000-8000-000000000001",
-          vehicleCode: "TRK-01",
-          makeModel: "Mercedes-Benz Actros 2545",
-          licensePlate: "DX-2026-AA",
-          maxWeightKg: 4000,
-          maxVolumeM3: 28.5,
-          status: "AVAILABLE",
-          currentLatitude: 51.5074,
-          currentLongitude: -0.1278,
-          fuelPercent: 88,
-          odometerKm: 42150,
-          driverName: "Marcus Vance",
-        },
-        {
-          id: "019488a0-0000-7000-8000-000000000002",
-          vehicleCode: "TRK-02",
-          makeModel: "Volvo FH16 750 Globetrotter",
-          licensePlate: "DX-2026-BB",
-          maxWeightKg: 5000,
-          maxVolumeM3: 32.0,
-          status: "IN_TRANSIT",
-          currentLatitude: 51.5200,
-          currentLongitude: -0.1100,
-          fuelPercent: 72,
-          odometerKm: 68900,
-          driverName: "Sarah Connor",
-        },
-        {
-          id: "019488a0-0000-7000-8000-000000000003",
-          vehicleCode: "VAN-03",
-          makeModel: "Ford Transit EcoBlue 350",
-          licensePlate: "DX-2026-CC",
-          maxWeightKg: 1500,
-          maxVolumeM3: 15.1,
-          status: "AVAILABLE",
-          currentLatitude: 51.4900,
-          currentLongitude: -0.1400,
-          fuelPercent: 95,
-          odometerKm: 18400,
-          driverName: "David Kim",
-        },
-      ];
+    let vehicleList = FLEET_UNITS.map((u) => {
+      const activeRoute = activePlan?.routes?.find(
+        (r) => r.vehicleId === u.id || r.vehicleCode === u.vehicleCode
+      );
+
+      const assignedWeight = activeRoute?.totalWeightKg || Math.round(u.capacityWeightKg * 0.72);
+      const assignedVolume = activeRoute?.totalVolumeM3 || Math.round(u.capacityVolumeM3 * 0.68 * 10) / 10;
+      const isFailed = activeRoute?.isFailed;
+      const hasStucked = activeRoute?.stops?.some((s) => s.status === "STUCKED");
+
+      let vStatus = "AVAILABLE";
+      if (isFailed) {
+        vStatus = "MAINTENANCE";
+      } else if (hasStucked) {
+        vStatus = "DELAYED_ROUTE";
+      } else if (activeRoute && activeRoute.stops.length > 0) {
+        vStatus = "IN_TRANSIT";
+      }
+
+      // Infer current location from active route stops
+      const activeDelivery = activeRoute?.stops?.find((s) => s.status === "IN_TRANSIT" || s.status === "STUCKED");
+      const currentLat = activeDelivery?.lat || (u.id === "VH-001" ? 37.7749 : u.id === "VH-002" ? 37.785 : 37.76);
+      const currentLng = activeDelivery?.lng || (u.id === "VH-001" ? -122.4194 : u.id === "VH-002" ? -122.405 : -122.42);
+      const locName = activeDelivery?.locationName || (u.id === "VH-001" ? "SOMA Arterial Corridor" : u.id === "VH-002" ? "Industrial Bypass" : "Mission Commercial Zone");
+
+      return {
+        id: u.id,
+        vehicleCode: u.vehicleCode,
+        makeModel:
+          u.id === "VH-001"
+            ? "Mercedes-Benz Sprinter 3500"
+            : u.id === "VH-002"
+            ? "Ford E-Transit Electric High-Roof"
+            : "Ram ProMaster 2500 Cargo",
+        licensePlate:
+          u.id === "VH-001" ? "SF-789-TX" : u.id === "VH-002" ? "SF-104-EQ" : "SF-552-KL",
+        maxWeightKg: u.capacityWeightKg,
+        maxVolumeM3: u.capacityVolumeM3,
+        currentWeightKg: assignedWeight,
+        currentVolumeM3: assignedVolume,
+        status: vStatus,
+        currentLatitude: currentLat,
+        currentLongitude: currentLng,
+        currentLocationName: locName,
+        fuelPercent: u.id === "VH-002" ? 92 : 84,
+        odometerKm: u.id === "VH-001" ? 42150 : u.id === "VH-002" ? 28400 : 36800,
+        driverName: u.driverName,
+        fuelEfficiencyKmPerL: u.fuelEfficiencyKmPerL,
+        fuelConsumedLiters: activeRoute?.fuelConsumedLiters || 14.2,
+        co2EmittedKg: activeRoute?.co2EmittedKg || 38.0,
+        stopsCount: activeRoute?.stopsCount || 4,
+        distanceKm: activeRoute?.distanceKm || 68.5,
+      };
+    });
+
+    if (status && status !== "ALL") {
+      vehicleList = vehicleList.filter((v) => v.status === status);
     }
 
     return NextResponse.json({

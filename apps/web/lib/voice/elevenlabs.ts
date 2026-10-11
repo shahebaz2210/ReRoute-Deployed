@@ -3,14 +3,14 @@
  * Strictly adheres to Problem Statement S-01 (ReRoute: Dynamic Fleet & Delivery Replanning):
  * 1. Road closure increasing travel time between two locations for a stated period.
  * 2. Vehicle failure at a stated time (receives no stops after failure time).
- * 3. Urgent delivery added during the day.
+ * 3. Order cancellation skipping location completely.
  * 
  * Hard Policy: Reports referencing an unknown location MUST be REJECTED, not guessed at.
  * Dispatcher confirmation required before any text report takes effect.
  */
 
 export interface ParsedVoiceIncident {
-  type: "ROAD_CLOSURE" | "VEHICLE_BREAKDOWN" | "URGENT_DELIVERY" | "CUSTOMER_UNAVAILABLE" | "TRAFFIC_DELAY";
+  type: "ROAD_CLOSURE" | "VEHICLE_BREAKDOWN" | "CUSTOMER_UNAVAILABLE" | "TRAFFIC_DELAY" | "TRAFFIC_CONGESTION" | "CANCELLATION";
   severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   status: "VALID" | "REJECTED";
   rejection_reason?: string;
@@ -164,10 +164,16 @@ export function parseVoiceTranscript(
   let failureTime: number | undefined = undefined;
   let durationPeriod = 60; // 60 min default closure period
 
-  if (text.includes("urgent") || text.includes("priority delivery") || text.includes("emergency order")) {
-    type = "URGENT_DELIVERY";
+  if (text.includes("cancel") || text.includes("cancelled") || text.includes("cancellation")) {
+    type = "CANCELLATION";
+    severity = "MEDIUM";
+    delay = 0;
+    action = "Skip cancelled order location completely. Remove stop from route sequence to save time, distance, and fuel.";
+  } else if (text.includes("traffic") || text.includes("congestion") || text.includes("jam") || text.includes("gridlock") || text.includes("bottleneck") || text.includes("slowdown")) {
+    type = "TRAFFIC_CONGESTION";
     severity = "HIGH";
-    action = "Insert urgent delivery into optimal active vehicle route respecting capacity and deadlines";
+    delay = 30;
+    action = "Severe traffic congestion detected. Re-route via alternate corridor detour to save time, fuel, and avoid delay.";
   } else if (text.includes("breakdown") || text.includes("failed") || text.includes("failure") || text.includes("flat tire") || text.includes("engine") || text.includes("overheated")) {
     type = "VEHICLE_BREAKDOWN";
     severity = "CRITICAL";

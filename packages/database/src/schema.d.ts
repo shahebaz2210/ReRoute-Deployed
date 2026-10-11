@@ -1,7 +1,7 @@
 export declare const memberRoleEnum: import("drizzle-orm/pg-core").PgEnum<["admin", "dispatcher", "driver", "viewer"]>;
 export declare const vehicleStatusEnum: import("drizzle-orm/pg-core").PgEnum<["available", "en_route", "delayed", "broken_down", "maintenance"]>;
 export declare const deliveryStatusEnum: import("drizzle-orm/pg-core").PgEnum<["pending", "assigned", "in_transit", "completed", "failed", "cancelled"]>;
-export declare const incidentTypeEnum: import("drizzle-orm/pg-core").PgEnum<["breakdown", "road_closure", "traffic_delay", "urgent_order", "weather", "other"]>;
+export declare const incidentTypeEnum: import("drizzle-orm/pg-core").PgEnum<["breakdown", "road_closure", "traffic_delay", "weather", "other"]>;
 export declare const incidentStatusEnum: import("drizzle-orm/pg-core").PgEnum<["draft", "submitted", "under_assessment", "confirmed", "dismissed", "replanning", "awaiting_approval", "applying", "resolved", "failed", "cancelled"]>;
 export declare const planStatusEnum: import("drizzle-orm/pg-core").PgEnum<["draft", "solving", "proposed", "active", "superseded"]>;
 export declare const jobStatusEnum: import("drizzle-orm/pg-core").PgEnum<["queued", "running", "succeeded", "failed", "timed_out", "cancelled"]>;
@@ -1522,14 +1522,14 @@ export declare const incidents: import("drizzle-orm/pg-core").PgTableWithColumns
             tableName: "incidents";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "breakdown" | "road_closure" | "traffic_delay" | "urgent_order" | "weather" | "other";
+            data: "breakdown" | "road_closure" | "traffic_delay" | "weather" | "other";
             driverParam: string;
             notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: ["breakdown", "road_closure", "traffic_delay", "urgent_order", "weather", "other"];
+            enumValues: ["breakdown", "road_closure", "traffic_delay", "weather", "other"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;

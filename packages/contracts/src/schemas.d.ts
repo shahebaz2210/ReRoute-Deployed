@@ -5,7 +5,7 @@ export declare const VehicleStatusSchema: z.ZodEnum<["available", "en_route", "d
 export type VehicleStatus = z.infer<typeof VehicleStatusSchema>;
 export declare const DeliveryStatusSchema: z.ZodEnum<["pending", "assigned", "in_transit", "completed", "failed", "cancelled"]>;
 export type DeliveryStatus = z.infer<typeof DeliveryStatusSchema>;
-export declare const IncidentTypeSchema: z.ZodEnum<["breakdown", "road_closure", "traffic_delay", "urgent_order", "weather", "other"]>;
+export declare const IncidentTypeSchema: z.ZodEnum<["breakdown", "road_closure", "traffic_delay", "weather", "other"]>;
 export type IncidentType = z.infer<typeof IncidentTypeSchema>;
 export declare const IncidentStatusSchema: z.ZodEnum<["draft", "submitted", "under_assessment", "confirmed", "dismissed", "replanning", "awaiting_approval", "applying", "resolved", "failed", "cancelled"]>;
 export type IncidentStatus = z.infer<typeof IncidentStatusSchema>;
@@ -183,7 +183,7 @@ export declare const CreateOrderSchema: z.ZodObject<Omit<{
 }>;
 export type CreateOrder = z.infer<typeof CreateOrderSchema>;
 export declare const IncidentCreateSchema: z.ZodObject<{
-    type: z.ZodEnum<["breakdown", "road_closure", "traffic_delay", "urgent_order", "weather", "other"]>;
+    type: z.ZodEnum<["breakdown", "road_closure", "traffic_delay", "weather", "other"]>;
     severity: z.ZodDefault<z.ZodEnum<["low", "medium", "high", "critical"]>>;
     description: z.ZodString;
     vehicleId: z.ZodOptional<z.ZodString>;
@@ -191,7 +191,7 @@ export declare const IncidentCreateSchema: z.ZodObject<{
     locationId: z.ZodOptional<z.ZodString>;
     reportedAt: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    type: "breakdown" | "road_closure" | "traffic_delay" | "urgent_order" | "weather" | "other";
+    type: "breakdown" | "road_closure" | "traffic_delay" | "weather" | "other";
     severity: "high" | "low" | "medium" | "critical";
     description: string;
     locationId?: string | undefined;
@@ -199,7 +199,7 @@ export declare const IncidentCreateSchema: z.ZodObject<{
     routeId?: string | undefined;
     reportedAt?: string | undefined;
 }, {
-    type: "breakdown" | "road_closure" | "traffic_delay" | "urgent_order" | "weather" | "other";
+    type: "breakdown" | "road_closure" | "traffic_delay" | "weather" | "other";
     description: string;
     locationId?: string | undefined;
     severity?: "high" | "low" | "medium" | "critical" | undefined;

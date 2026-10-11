@@ -1,7 +1,9 @@
 import hashlib
 import json
 import time
-from typing import List, Dict, Tuple
+import math
+import logging
+from typing import List, Dict, Any, Tuple
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
@@ -12,11 +14,16 @@ from app.models import (
     StopAssignment,
     UnassignedOrder,
     MetricEstimates,
+    ValidationResult,
+    PriorityEnum,
 )
+from app.osrm_client import OSRMClient, build_fallback_matrices
+from app.validator import validate_solution
+
+logger = logging.getLogger("routeiq.solver")
 
 
 def compute_input_hash(req: OptimizationRequest) -> str:
-    """Compute deterministic SHA256 input hash for reproducibility (Task 153)."""
     serialized = json.dumps(
         {
             "plan_id": req.plan_id,
@@ -28,24 +35,28 @@ def compute_input_hash(req: OptimizationRequest) -> str:
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
 
 
-def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
+async def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
     start_time = time.time()
     input_hash = compute_input_hash(req)
 
-    # 1. Deterministic ordering (Task 152)
     sorted_vehicles = sorted(req.vehicles, key=lambda v: v.id)
     sorted_orders = sorted([o for o in req.orders if not o.is_completed], key=lambda o: o.id)
 
     num_vehicles = len(sorted_vehicles)
     num_orders = len(sorted_orders)
 
-    # If no orders or vehicles, return empty immediately
+    # Resolve Single Central Depot coordinates
+    depot_lat = req.depot.latitude if req.depot else (sorted_vehicles[0].start_latitude if sorted_vehicles else 37.7749)
+    depot_lng = req.depot.longitude if req.depot else (sorted_vehicles[0].start_longitude if sorted_vehicles else -122.4194)
+    depot_id = req.depot.id if req.depot else "DC01"
+
     if num_vehicles == 0 or num_orders == 0:
         return OptimizationResponse(
             plan_id=req.plan_id,
             status="FEASIBLE",
             input_hash=input_hash,
             solver_duration_ms=0,
+            routing_provider="NONE",
             routes=[],
             unassigned_orders=[],
             metrics=MetricEstimates(
@@ -57,35 +68,66 @@ def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
                 estimated_cost_usd=0.0,
                 estimated_co2_kg=0.0,
             ),
+            validation=ValidationResult(is_valid=True, errors=[]),
         )
 
-    # Node 0 is Depot. Nodes 1..num_orders are delivery customer locations.
-    num_locations = 1 + num_orders
+    # 1. Build Location Registry: Index 0 is Central Depot; Index 1..N are Delivery Orders
+    locations = [{"latitude": depot_lat, "longitude": depot_lng, "id": depot_id}]
+    location_index_map: Dict[str, int] = {depot_id: 0}
+
+    for idx, order in enumerate(sorted_orders):
+        locations.append({
+            "latitude": order.delivery_latitude,
+            "longitude": order.delivery_longitude,
+            "id": order.id,
+        })
+        location_index_map[order.id] = idx + 1
+
+    num_locations = len(locations)
     depot_index = 0
 
-    # 2. Setup IndexManager & RoutingModel
-    # Vehicles start and end at depot (index 0) (Task 140, 146)
+    # 2. Build or Retrieve OSRM Road Distance and Duration Matrices
+    routing_provider = "OSRM"
+    if req.duration_matrix_seconds and req.distance_matrix_meters and len(req.duration_matrix_seconds) == num_locations:
+        dur_matrix_seconds = req.duration_matrix_seconds
+        dist_matrix_meters = req.distance_matrix_meters
+        routing_provider = "PRECOMPUTED_MATRIX"
+    else:
+        osrm = OSRMClient()
+        dist_km_mat, dur_min_mat, provider_name = await osrm.get_table_matrix(locations)
+        routing_provider = provider_name
+        dur_matrix_seconds = [[int(round(m * 60)) for m in row] for row in dur_min_mat]
+        dist_matrix_meters = [[int(round(km * 1000)) for km in row] for row in dist_km_mat]
+
+    # 3. Setup RoutingIndexManager & RoutingModel
+    # Every vehicle starts and ends at the Central Depot Center
     manager = pywrapcp.RoutingIndexManager(
         num_locations, num_vehicles, [depot_index] * num_vehicles, [depot_index] * num_vehicles
     )
     routing = pywrapcp.RoutingModel(manager)
 
-    # 3. Travel Time Matrix Callback (Task 143)
+    # 4. Travel Time Callback with Road Closures
     def time_callback(from_index: int, to_index: int) -> int:
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
-        # Service duration applied at from_node if it is a delivery
         service_time = sorted_orders[from_node - 1].service_duration_minute if from_node > 0 else 0
-        travel_time = 15  # default 15 min travel between adjacent nodes if matrix smaller
-        if from_node < len(req.duration_matrix_seconds) and to_node < len(req.duration_matrix_seconds[from_node]):
-            travel_time = req.duration_matrix_seconds[from_node][to_node] // 60
-        return service_time + travel_time
+        travel_time = 15
+        if from_node < len(dur_matrix_seconds) and to_node < len(dur_matrix_seconds[from_node]):
+            travel_time = dur_matrix_seconds[from_node][to_node] // 60
+
+        closure_delay = 0
+        if req.road_closures:
+            for rc in req.road_closures:
+                if (rc.from_node_index == from_node and rc.to_node_index == to_node) or \
+                   (rc.to_node_index == from_node and rc.from_node_index == to_node):
+                    closure_delay += rc.additional_delay_seconds // 60
+
+        return service_time + travel_time + closure_delay
 
     transit_time_callback_index = routing.RegisterTransitCallback(time_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_time_callback_index)
 
-    # 4. Weight Capacity Dimension (Task 141, OPT-H01)
-    # Scaled to grams / integers (Task 150)
+    # 5. Weight Capacity Dimension
     def weight_demand_callback(from_index: int) -> int:
         from_node = manager.IndexToNode(from_index)
         if from_node == 0:
@@ -97,13 +139,13 @@ def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
 
     routing.AddDimensionWithVehicleCapacity(
         weight_callback_index,
-        0,  # null capacity slack
+        0,
         vehicle_weight_capacities,
-        True,  # start cumul to zero
+        True,
         "Weight",
     )
 
-    # 5. Volume Capacity Dimension (Task 142, OPT-H02)
+    # 6. Volume Capacity Dimension
     def volume_demand_callback(from_index: int) -> int:
         from_node = manager.IndexToNode(from_index)
         if from_node == 0:
@@ -121,50 +163,44 @@ def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
         "Volume",
     )
 
-    # 6. Time Dimension with Windows (Task 143, OPT-H04)
+    # 7. Time Dimension with Hard Delivery Windows
     routing.AddDimension(
         transit_time_callback_index,
-        60,  # allow waiting time up to 60 mins
-        720,  # 12 hours shift span
-        False,  # don't force start cumul to zero
+        180,   # allow waiting time up to 180 mins before window opens
+        1440,  # 24-hr day timeline
+        False,
         "Time",
     )
     time_dimension = routing.GetDimensionOrDie("Time")
 
-    # Set Time Windows for each order
     for order_idx, order in enumerate(sorted_orders):
         node = order_idx + 1
         index = manager.NodeToIndex(node)
         time_dimension.CumulVar(index).SetRange(order.window_start_minute, order.window_end_minute)
 
-    # Set depot vehicle shift availability (Task 144)
+    # Vehicle Shift Windows & Mid-Day Failure (Breakdown)
     for v_idx, v in enumerate(sorted_vehicles):
         start_idx = routing.Start(v_idx)
-        time_dimension.CumulVar(start_idx).SetRange(v.available_from_minute, v.available_to_minute)
+        end_idx = routing.End(v_idx)
+        effective_to_minute = v.available_to_minute
+        if v.failure_time_minute is not None:
+            effective_to_minute = min(v.failure_time_minute, v.available_to_minute)
 
-    # 7. Disjunction Penalties by Priority (Task 147, Tier-1 Objective)
+        time_dimension.CumulVar(start_idx).SetRange(v.available_from_minute, effective_to_minute)
+        time_dimension.CumulVar(end_idx).SetRange(v.available_from_minute, effective_to_minute)
+
+    # 8. Disjunction Penalties by Priority
     for order_idx, order in enumerate(sorted_orders):
         node = order_idx + 1
         index = manager.NodeToIndex(node)
         penalty = req.weights.unassigned_penalty_standard
-        if order.priority == "CRITICAL":
+        if order.priority == PriorityEnum.CRITICAL:
             penalty = req.weights.unassigned_penalty_critical
-        elif order.priority == "EXPRESS":
+        elif order.priority == PriorityEnum.EXPRESS:
             penalty = req.weights.unassigned_penalty_express
         routing.AddDisjunction([index], penalty)
 
-    # 8. Replan disruption penalty (Task 148, Tier-2 Objective)
-    if req.is_replan:
-        vehicle_code_to_idx = {v.id: idx for idx, v in enumerate(sorted_vehicles)}
-        for order_idx, order in enumerate(sorted_orders):
-            if order.previously_assigned_vehicle_id in vehicle_code_to_idx:
-                favored_v = vehicle_code_to_idx[order.previously_assigned_vehicle_id]
-                node = order_idx + 1
-                index = manager.NodeToIndex(node)
-                # Encourage keeping the previously assigned vehicle
-                routing.SetVehicleUsedWhenEmpty(False, favored_v)
-
-    # 9. Search Parameters: PATH_CHEAPEST_ARC, GUIDED_LOCAL_SEARCH (Task 151)
+    # 9. Search Parameters: PATH_CHEAPEST_ARC & GUIDED_LOCAL_SEARCH
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (
         routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
@@ -184,13 +220,14 @@ def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
             status="INFEASIBLE",
             input_hash=input_hash,
             solver_duration_ms=solve_duration_ms,
+            routing_provider=routing_provider,
             routes=[],
             unassigned_orders=[
                 UnassignedOrder(
                     order_id=o.id,
                     order_reference=o.order_reference,
-                    reason_code="SOLVER_NO_SOLUTION",
-                    reason_message="No feasible solution found within solver constraints.",
+                    reason_code="INFEASIBLE_CONSTRAINTS",
+                    reason_message="No feasible route found respecting all capacity and time window constraints.",
                 )
                 for o in sorted_orders
             ],
@@ -198,138 +235,200 @@ def solve_vrptw(req: OptimizationRequest) -> OptimizationResponse:
                 total_distance_km=0.0,
                 total_duration_minutes=0,
                 total_orders_served=0,
-                total_orders_unassigned=len(sorted_orders),
+                total_orders_unassigned=num_orders,
                 estimated_fuel_liters=0.0,
                 estimated_cost_usd=0.0,
                 estimated_co2_kg=0.0,
             ),
+            validation=ValidationResult(is_valid=False, errors=["Solver established no feasible solution."]),
         )
 
-    # 11. Extract Routes and Unassigned Orders
+    # 11. Extract Solution Routes & Metrics
     routes: List[VehicleRoute] = []
-    assigned_orders = set()
-    total_fleet_distance_km = 0.0
-    total_fleet_duration_min = 0
+    assigned_orders_set = set()
+    total_distance_km = 0.0
+    total_duration_minutes = 0
+    total_fuel_liters = 0.0
+    total_co2_kg = 0.0
+
+    osrm_client = OSRMClient()
 
     for v_idx, v in enumerate(sorted_vehicles):
-        index = routing.Start(v_idx)
         stops: List[StopAssignment] = []
-        seq = 1
-        route_weight = 0.0
-        route_volume = 0.0
+        route_distance_meters = 0
+        route_weight_kg = 0.0
+        route_volume_m3 = 0.0
 
-        # Start depot stop
-        start_time_val = solution.Min(time_dimension.CumulVar(index))
+        index = routing.Start(v_idx)
+        prev_node = 0
+        seq = 1
+
+        # Departure from Central Depot
+        depot_start_time = solution.Min(time_dimension.CumulVar(index))
         stops.append(
             StopAssignment(
                 stop_sequence=seq,
                 location_type="DEPOT_START",
-                arrival_minute=start_time_val,
-                departure_minute=start_time_val,
-                slack_minutes=0,
-                cumulative_weight_kg=0.0,
-                cumulative_volume_m3=0.0,
+                latitude=depot_lat,
+                longitude=depot_lng,
+                arrival_minute=depot_start_time,
+                waiting_minutes=0,
+                service_duration_minutes=0,
+                departure_minute=depot_start_time,
+                delivery_status="completed",
             )
         )
 
         while not routing.IsEnd(index):
-            index = solution.Value(routing.NextVar(index))
-            node = manager.IndexToNode(index)
-            if node != 0:
-                order = sorted_orders[node - 1]
-                assigned_orders.add(order.id)
-                arr = solution.Min(time_dimension.CumulVar(index))
-                dep = arr + order.service_duration_minute
-                route_weight += order.weight_kg
-                route_volume += order.volume_m3
-                seq += 1
-                stops.append(
-                    StopAssignment(
-                        stop_sequence=seq,
-                        order_id=order.id,
-                        order_reference=order.order_reference,
-                        location_type="DELIVERY",
-                        arrival_minute=arr,
-                        departure_minute=dep,
-                        slack_minutes=max(0, order.window_end_minute - arr),
-                        cumulative_weight_kg=round(route_weight, 2),
-                        cumulative_volume_m3=round(route_volume, 2),
-                    )
-                )
+            next_index = solution.Value(routing.NextVar(index))
+            from_node = manager.IndexToNode(index)
+            to_node = manager.IndexToNode(next_index)
 
-        # End depot stop
-        end_time_val = solution.Min(time_dimension.CumulVar(index))
+            if from_node < len(dist_matrix_meters) and to_node < len(dist_matrix_meters[from_node]):
+                route_distance_meters += dist_matrix_meters[from_node][to_node]
+
+            index = next_index
+            if routing.IsEnd(index):
+                break
+
+            seq += 1
+            node = manager.IndexToNode(index)
+            order = sorted_orders[node - 1]
+            assigned_orders_set.add(order.id)
+
+            arrival_time = solution.Min(time_dimension.CumulVar(index))
+            waiting_time = max(0, order.window_start_minute - arrival_time)
+            departure_time = arrival_time + waiting_time + order.service_duration_minute
+
+            route_weight_kg += order.weight_kg
+            route_volume_m3 += order.volume_m3
+
+            stops.append(
+                StopAssignment(
+                    stop_sequence=seq,
+                    order_id=order.id,
+                    order_reference=order.order_reference,
+                    retailer_id=order.retailer_id,
+                    location_type="DELIVERY",
+                    latitude=order.delivery_latitude,
+                    longitude=order.delivery_longitude,
+                    arrival_minute=arrival_time,
+                    waiting_minutes=waiting_time,
+                    service_duration_minutes=order.service_duration_minute,
+                    departure_minute=departure_time,
+                    cumulative_weight_kg=round(route_weight_kg, 1),
+                    cumulative_volume_m3=round(route_volume_m3, 2),
+                    delivery_status=order.status,
+                )
+            )
+
+        # Return to Central Depot
         seq += 1
+        depot_end_time = solution.Min(time_dimension.CumulVar(index))
         stops.append(
             StopAssignment(
                 stop_sequence=seq,
                 location_type="DEPOT_END",
-                arrival_minute=end_time_val,
-                departure_minute=end_time_val,
-                slack_minutes=0,
-                cumulative_weight_kg=round(route_weight, 2),
-                cumulative_volume_m3=round(route_volume, 2),
+                latitude=depot_lat,
+                longitude=depot_lng,
+                arrival_minute=depot_end_time,
+                waiting_minutes=0,
+                service_duration_minutes=0,
+                departure_minute=depot_end_time,
+                cumulative_weight_kg=round(route_weight_kg, 1),
+                cumulative_volume_m3=round(route_volume_m3, 2),
+                delivery_status="pending",
             )
         )
 
-        # Approximate vehicle route distance based on stops
-        v_distance_km = max(10.0, len(stops) * 8.5)
-        v_duration_min = max(30, end_time_val - start_time_val)
+        v_dist_km = round(route_distance_meters / 1000.0, 2)
+        v_duration_mins = depot_end_time - depot_start_time
+        fuel_eff = getattr(v, "fuel_efficiency", 5.4) or 5.4
+        v_fuel_liters = round(v_dist_km / fuel_eff, 2)
+        v_co2_kg = round(v_fuel_liters * 2.68, 2)
+
+        total_distance_km += v_dist_km
+        total_duration_minutes += v_duration_mins
+        total_fuel_liters += v_fuel_liters
+        total_co2_kg += v_co2_kg
+
+        # Fetch real road polyline geometry from OSRM
+        route_coords = [{"latitude": st.latitude, "longitude": st.longitude} for st in stops]
+        route_geom = None
+        if len(stops) > 2:
+            route_geom = await osrm_client.get_route_geometry(route_coords)
 
         routes.append(
             VehicleRoute(
                 vehicle_id=v.id,
                 vehicle_code=v.vehicle_code,
                 stops=stops,
-                total_distance_km=round(v_distance_km, 1),
-                total_duration_minutes=v_duration_min,
-                weight_utilization_percent=round((route_weight / v.max_weight_kg) * 100, 1),
-                volume_utilization_percent=round((route_volume / v.max_volume_m3) * 100, 1),
+                total_distance_km=v_dist_km,
+                total_duration_minutes=v_duration_mins,
+                estimated_fuel_liters=v_fuel_liters,
+                estimated_co2_kg=v_co2_kg,
+                weight_utilization_percent=round((route_weight_kg / v.max_weight_kg) * 100, 1),
+                volume_utilization_percent=round((route_volume_m3 / v.max_volume_m3) * 100, 1),
+                is_failed=bool(v.failure_time_minute),
+                failure_time_minute=v.failure_time_minute,
+                route_geometry=route_geom,
             )
         )
 
-        total_fleet_distance_km += v_distance_km
-        total_fleet_duration_min += v_duration_min
-
-    # 12. Determine unassigned orders and reason codes (Task 156)
+    # 12. Diagnose Unassigned Orders
     unassigned_orders: List[UnassignedOrder] = []
     for order in sorted_orders:
-        if order.id not in assigned_orders:
-            # Check reasons
-            reason_code = "CAPACITY_EXCEEDED"
-            reason_msg = "Order could not fit within vehicle capacity while satisfying other deliveries."
-            if order.window_end_minute < 120:
-                reason_code = "TIME_WINDOW_TIGHT"
-                reason_msg = "Delivery window closed before nearest vehicle could arrive."
+        if order.id not in assigned_orders_set:
+            reason = "CAPACITY_OR_TIME_WINDOW_MISSED"
+            if order.weight_kg > max(v.max_weight_kg for v in sorted_vehicles):
+                reason = "WEIGHT_EXCEEDS_FLEET_CAPACITY"
+            elif order.volume_m3 > max(v.max_volume_m3 for v in sorted_vehicles):
+                reason = "VOLUME_EXCEEDS_FLEET_CAPACITY"
+
             unassigned_orders.append(
                 UnassignedOrder(
                     order_id=order.id,
                     order_reference=order.order_reference,
-                    reason_code=reason_code,
-                    reason_message=reason_msg,
+                    reason_code=reason,
+                    reason_message=f"Order could not be accommodated within active vehicle capacities and shift time windows.",
                 )
             )
 
-    # 13. Metrics: fuel, emissions, cost estimates (Tasks 157, 158, 159)
-    fuel_liters = round(total_fleet_distance_km * 0.28, 1)  # 28 L / 100 km diesel
-    co2_kg = round(fuel_liters * 2.68, 1)  # 2.68 kg CO2 per liter diesel
-    cost_usd = round(fuel_liters * 1.65 + (total_fleet_duration_min / 60) * 25.0, 2)
+    # 13. Independent Solution Validation
+    dur_matrix_mins = [[sec / 60.0 for sec in row] for row in dur_matrix_seconds]
+    dist_matrix_km = [[m / 1000.0 for m in row] for row in dist_matrix_meters]
+
+    is_valid, validation_errors = validate_solution(
+        vehicles=sorted_vehicles,
+        orders=sorted_orders,
+        depot=req.depot,
+        routes=routes,
+        unassigned_order_ids=[u.order_id for u in unassigned_orders],
+        travel_time_matrix_minutes=dur_matrix_mins,
+        distance_matrix_km=dist_matrix_km,
+        location_index_map=location_index_map,
+    )
+
+    status_str = "OPTIMAL" if len(unassigned_orders) == 0 else "FEASIBLE"
+    if not is_valid:
+        logger.warning(f"Plan validation identified warnings: {validation_errors}")
 
     return OptimizationResponse(
         plan_id=req.plan_id,
-        status="OPTIMAL" if len(unassigned_orders) == 0 else "FEASIBLE",
+        status=status_str,
         input_hash=input_hash,
         solver_duration_ms=solve_duration_ms,
+        routing_provider=routing_provider,
         routes=routes,
         unassigned_orders=unassigned_orders,
         metrics=MetricEstimates(
-            total_distance_km=round(total_fleet_distance_km, 1),
-            total_duration_minutes=total_fleet_duration_min,
-            total_orders_served=len(assigned_orders),
+            total_distance_km=round(total_distance_km, 2),
+            total_duration_minutes=total_duration_minutes,
+            total_orders_served=len(assigned_orders_set),
             total_orders_unassigned=len(unassigned_orders),
-            estimated_fuel_liters=fuel_liters,
-            estimated_cost_usd=cost_usd,
-            estimated_co2_kg=co2_kg,
-            is_estimate=True,
+            estimated_fuel_liters=round(total_fuel_liters, 2),
+            estimated_cost_usd=round(total_fuel_liters * 1.65, 2),
+            estimated_co2_kg=round(total_co2_kg, 2),
         ),
+        validation=ValidationResult(is_valid=is_valid, errors=validation_errors),
     )

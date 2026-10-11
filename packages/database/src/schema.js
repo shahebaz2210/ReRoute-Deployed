@@ -25,7 +25,6 @@ exports.incidentTypeEnum = (0, pg_core_1.pgEnum)("incident_type", [
     "breakdown",
     "road_closure",
     "traffic_delay",
-    "urgent_order",
     "weather",
     "other",
 ]);

@@ -3,7 +3,7 @@ __pycache__/
 *.py[codz]
 *$py.class
 graphify-out/cache/
-graphify-out/2026-10-11/
+graphify-out/20*/
 
 # C extensions
 *.so

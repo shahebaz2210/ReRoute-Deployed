@@ -184,11 +184,11 @@ describe("PS S-01 — ReRoute: Dynamic Fleet & Delivery Replanning Full Verifica
     expect(v2Route?.stops.length).toBeGreaterThan(0);
   });
 
-  // 5. Disruption 3: Urgent Delivery Added During the Day
-  it("Requirement 5 (Disruption 3): Urgent delivery added during the day dynamically", () => {
-    const urgentDelivery = {
-      id: "STOP-URGENT",
-      name: "Emergency Blood Sample",
+  // 5. Dynamic Order Insertion
+  it("Requirement 5: Dynamic order insertion into active plan schedule", () => {
+    const dynamicDelivery = {
+      id: "STOP-DYNAMIC-01",
+      name: "Medical Diagnostic Sample",
       lat: 37.7780,
       lng: -122.4150,
       weight_kg: 10,
@@ -199,16 +199,16 @@ describe("PS S-01 — ReRoute: Dynamic Fleet & Delivery Replanning Full Verifica
     };
 
     const payload: OptimizationPayload = {
-      plan_id: "PLAN-URGENT-ADD",
+      plan_id: "PLAN-DYNAMIC-ADD",
       vehicles,
-      stops: [...stops, urgentDelivery],
+      stops: [...stops, dynamicDelivery],
       depot,
     };
 
     const solution = solveLocally(payload);
     expect(solution.status).toBe("OPTIMAL");
     const assignedStops = solution.routes.flatMap((r) => r.stops.map((s) => s.stop_id));
-    expect(assignedStops).toContain("STOP-URGENT");
+    expect(assignedStops).toContain("STOP-DYNAMIC-01");
   });
 
   // 6. Text Report Interpretation & Unknown Location Rejection

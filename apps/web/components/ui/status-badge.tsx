@@ -18,6 +18,11 @@ import {
 
 export type LogisticsStatus =
   | "DELIVERED"
+  | "IN_TRANSIT"
+  | "STUCK"
+  | "STUCKED"
+  | "CANCELED"
+  | "CANCELLED"
   | "PENDING"
   | "FAILED"
   | "ACTIVE_VEHICLE"
@@ -45,6 +50,41 @@ const STATUS_CONFIGS: Record<LogisticsStatus, StatusConfig> = {
     fgVar: "var(--status-delivered)",
     bgVar: "var(--status-delivered-bg)",
     borderVar: "var(--status-delivered-border)",
+  },
+  IN_TRANSIT: {
+    label: "In Transit",
+    icon: Truck,
+    fgVar: "var(--status-in-transit, #1D4ED8)",
+    bgVar: "var(--status-in-transit-bg, #EFF6FF)",
+    borderVar: "var(--status-in-transit-border, #BFDBFE)",
+  },
+  STUCK: {
+    label: "Stucked",
+    icon: AlertTriangle,
+    fgVar: "var(--status-delayed-route)",
+    bgVar: "var(--status-delayed-route-bg)",
+    borderVar: "var(--status-delayed-route-border)",
+  },
+  STUCKED: {
+    label: "Stucked",
+    icon: AlertTriangle,
+    fgVar: "var(--status-delayed-route)",
+    bgVar: "var(--status-delayed-route-bg)",
+    borderVar: "var(--status-delayed-route-border)",
+  },
+  CANCELED: {
+    label: "Canceled",
+    icon: XCircle,
+    fgVar: "var(--status-canceled, #64748B)",
+    bgVar: "var(--status-canceled-bg, #F1F5F9)",
+    borderVar: "var(--status-canceled-border, #CBD5E1)",
+  },
+  CANCELLED: {
+    label: "Canceled",
+    icon: XCircle,
+    fgVar: "var(--status-canceled, #64748B)",
+    bgVar: "var(--status-canceled-bg, #F1F5F9)",
+    borderVar: "var(--status-canceled-border, #CBD5E1)",
   },
   PENDING: {
     label: "Pending",
@@ -132,6 +172,8 @@ export interface StatusBadgeProps {
   size?: "sm" | "default";
 }
 
+import { cn } from "@/lib/utils";
+
 export function StatusBadge({ status, customLabel, className = "", size = "default" }: StatusBadgeProps) {
   const normalizedKey = (status.toUpperCase().replace(/[\s-]/g, "_") as LogisticsStatus);
   const config = STATUS_CONFIGS[normalizedKey] || {
@@ -145,20 +187,25 @@ export function StatusBadge({ status, customLabel, className = "", size = "defau
   const IconComponent = config.icon;
   const label = customLabel || config.label;
 
-  const sizeStyles = size === "sm" ? "px-2 py-0.5 text-[11px] gap-1" : "px-2.5 py-1 text-xs gap-1.5";
+  const sizeStyles = size === "sm" ? "px-2.5 py-0.5 text-[11px] gap-1" : "px-3 py-1 text-xs gap-1.5";
   const iconSize = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
 
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-md border select-none transition-colors ${sizeStyles} ${className}`}
+      className={cn(
+        "inline-flex items-center font-medium rounded-full border select-none transition-colors shadow-2xs tracking-tight",
+        sizeStyles,
+        className
+      )}
       style={{
         color: config.fgVar,
         backgroundColor: config.bgVar,
         borderColor: config.borderVar,
       }}
     >
-      <IconComponent className={`${iconSize} shrink-0`} />
-      <span>{label}</span>
+      <IconComponent className={cn(iconSize, "shrink-0")} />
+      <span className="font-semibold">{label}</span>
     </span>
   );
 }
+

@@ -35,7 +35,7 @@ def health_check():
     }
 
 @app.post("/optimize", response_model=OptimizationResponse)
-def optimize(request: OptimizationRequest, _auth: None = Depends(verify_secret)):
-    # Run Google OR-Tools VRPTW solver
-    solution = solve_vrptw(request)
+async def optimize(request: OptimizationRequest, _auth: None = Depends(verify_secret)):
+    # Run Google OR-Tools VRPTW solver with OSRM integration and validation
+    solution = await solve_vrptw(request)
     return solution

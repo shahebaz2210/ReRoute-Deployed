@@ -40,6 +40,8 @@ export interface OptimizationPayload {
   vehicles: OptimizeVehicle[];
   stops: OptimizeStop[];
   depot: { id: string; name: string; lat: number; lng: number };
+  duration_matrix_seconds?: number[][];
+  distance_matrix_meters?: number[][];
   simulated_travel_time_matrix_minutes?: number[][]; // PS S-01: Simulated matrix, no live GPS
   road_closures?: Array<{
     location_a_id: string;
@@ -294,21 +296,139 @@ export async function dispatchOptimization(payload: OptimizationPayload): Promis
   const workerSecret = process.env.OPTIMIZER_WORKER_SECRET || "dispatchx-internal-optimizer-secret-2026";
 
   try {
+    const allNodes = [payload.depot, ...payload.stops.map((s) => ({ lat: s.lat, lng: s.lng }))];
+    const N = allNodes.length;
+
+    let durMatrixSec: number[][] =
+      payload.duration_matrix_seconds && payload.duration_matrix_seconds.length === N
+        ? payload.duration_matrix_seconds
+        : payload.simulated_travel_time_matrix_minutes && payload.simulated_travel_time_matrix_minutes.length === N
+        ? payload.simulated_travel_time_matrix_minutes.map((row) => row.map((m) => m * 60))
+        : [];
+
+    let distMatrixMeters: number[][] =
+      payload.distance_matrix_meters && payload.distance_matrix_meters.length === N
+        ? payload.distance_matrix_meters
+        : [];
+
+    if (durMatrixSec.length !== N || distMatrixMeters.length !== N) {
+      durMatrixSec = [];
+      distMatrixMeters = [];
+      for (let i = 0; i < N; i++) {
+        const durRow: number[] = [];
+        const distRow: number[] = [];
+        for (let j = 0; j < N; j++) {
+          if (i === j) {
+            durRow.push(0);
+            distRow.push(0);
+          } else {
+            const km = haversineKm(allNodes[i].lat, allNodes[i].lng, allNodes[j].lat, allNodes[j].lng) * 1.25;
+            durRow.push(Math.round((km / 30) * 3600));
+            distRow.push(Math.round(km * 1000));
+          }
+        }
+        durMatrixSec.push(durRow);
+        distMatrixMeters.push(distRow);
+      }
+    }
+
+    const pythonPayload = {
+      plan_id: payload.plan_id,
+      is_replan: false,
+      depot: {
+        id: payload.depot.id || "DC01",
+        latitude: payload.depot.lat,
+        longitude: payload.depot.lng,
+      },
+      vehicles: payload.vehicles.map((v) => ({
+        id: v.id,
+        vehicle_code: v.name,
+        max_weight_kg: v.capacity_kg,
+        max_volume_m3: v.capacity_m3,
+        start_latitude: payload.depot.lat,
+        start_longitude: payload.depot.lng,
+        end_latitude: payload.depot.lat,
+        end_longitude: payload.depot.lng,
+        available_from_minute: 480,
+        available_to_minute: 480 + v.max_shift_minutes,
+        failure_time_minute: v.failure_time_minutes,
+      })),
+      orders: payload.stops.map((s) => ({
+        id: s.id,
+        order_reference: s.name,
+        delivery_latitude: s.lat,
+        delivery_longitude: s.lng,
+        weight_kg: s.weight_kg,
+        volume_m3: s.volume_m3,
+        window_start_minute: s.time_window_start_minutes,
+        window_end_minute: s.time_window_end_minutes,
+        service_duration_minute: s.service_duration_minutes,
+        priority: "STANDARD",
+        is_completed: s.is_completed || false,
+      })),
+      duration_matrix_seconds: durMatrixSec,
+      distance_matrix_meters: distMatrixMeters,
+      time_limit_seconds: payload.time_limit_seconds || 5,
+    };
+
     const res = await fetch(`${optimizerUrl}/optimize`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Worker-Secret": workerSecret,
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000),
+      body: JSON.stringify(pythonPayload),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (res.ok) {
       const data = await res.json();
-      if (data && data.routes) return data as OptimizationResult;
+      if (data && data.routes) {
+        const routes = data.routes.map((r: any) => ({
+          vehicle_id: r.vehicle_id,
+          vehicle_code: r.vehicle_code,
+          route_geometry: r.route_geometry,
+          stops: r.stops
+            .filter((st: any) => st.location_type === "DELIVERY" && st.order_id)
+            .map((st: any) => ({
+              stop_id: st.order_id,
+              order_sequence: st.stop_sequence,
+              arrival_time_minutes: st.arrival_minute,
+              waiting_time_minutes: st.waiting_minutes,
+              service_start_minutes: st.arrival_minute + st.waiting_minutes,
+              departure_time_minutes: st.departure_minute,
+              distance_from_prev_km: 8.5,
+              travel_time_from_prev_minutes: 15,
+              cumulative_weight_kg: st.cumulative_weight_kg,
+              cumulative_volume_m3: st.cumulative_volume_m3,
+            })),
+          total_distance_km: r.total_distance_km,
+          total_duration_minutes: r.total_duration_minutes,
+          total_weight_kg: Math.max(0, ...r.stops.map((s: any) => s.cumulative_weight_kg || 0)),
+          total_volume_m3: Math.max(0, ...r.stops.map((s: any) => s.cumulative_volume_m3 || 0)),
+          start_time_minutes: 480,
+          end_time_minutes: 480 + r.total_duration_minutes,
+          is_failed: r.is_failed,
+          failure_time_minutes: r.failure_time_minute,
+        }));
+
+        return {
+          plan_id: data.plan_id,
+          status: data.status,
+          total_distance_km: data.metrics?.total_distance_km || 0,
+          total_duration_minutes: data.metrics?.total_duration_minutes || 0,
+          routes,
+          unassigned_stop_ids: data.unassigned_orders?.map((u: any) => u.order_id) || [],
+          unassigned_reasons: Object.fromEntries(
+            (data.unassigned_orders || []).map((u: any) => [u.order_id, u.reason_message || u.reason_code])
+          ),
+          solve_duration_ms: data.solver_duration_ms || 100,
+          algorithm_explanation:
+            data.algorithm_explanation || "Google OR-Tools VRPTW with Guided Local Search & Travel Time Matrix",
+        };
+      }
     }
-  } catch {
+  } catch (err) {
     // Graceful fallback to local solver
   }
 

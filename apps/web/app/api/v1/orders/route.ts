@@ -33,7 +33,7 @@ interface OrderRecord {
   priority: string;
 }
 
-// Demo in-memory orders cache
+// Demo in-memory orders cache featuring live logistics statuses
 let inMemoryOrders: OrderRecord[] = [
   {
     id: "019488a0-0000-7000-8000-000000000010",
@@ -61,7 +61,7 @@ let inMemoryOrders: OrderRecord[] = [
     volumeM3: 2.5,
     timeWindowStart: "09:00",
     timeWindowEnd: "12:00",
-    status: "PENDING",
+    status: "IN_TRANSIT",
     assignedVehicleId: "019488a0-0000-7000-8000-000000000001",
     priority: "EXPRESS",
   },
@@ -76,19 +76,99 @@ let inMemoryOrders: OrderRecord[] = [
     volumeM3: 6.8,
     timeWindowStart: "10:00",
     timeWindowEnd: "14:00",
-    status: "PENDING",
+    status: "STUCKED",
     assignedVehicleId: "019488a0-0000-7000-8000-000000000002",
     priority: "STANDARD",
   },
+  {
+    id: "019488a0-0000-7000-8000-000000000013",
+    orderReference: "ORD-1004",
+    customerName: "Vortex Quantum Hub",
+    deliveryAddress: "101 Silicon Quay, Financial Hub",
+    latitude: 51.505,
+    longitude: -0.13,
+    weightKg: 380,
+    volumeM3: 1.9,
+    timeWindowStart: "11:00",
+    timeWindowEnd: "15:00",
+    status: "IN_TRANSIT",
+    assignedVehicleId: "019488a0-0000-7000-8000-000000000003",
+    priority: "CRITICAL",
+  },
+  {
+    id: "019488a0-0000-7000-8000-000000000014",
+    orderReference: "ORD-1005",
+    customerName: "St. Jude Hospital Supply",
+    deliveryAddress: "14 Healthcare Ave",
+    latitude: 51.518,
+    longitude: -0.125,
+    weightKg: 520,
+    volumeM3: 3.1,
+    timeWindowStart: "08:00",
+    timeWindowEnd: "10:30",
+    status: "DELIVERED",
+    assignedVehicleId: "019488a0-0000-7000-8000-000000000001",
+    priority: "CRITICAL",
+  },
+  {
+    id: "019488a0-0000-7000-8000-000000000015",
+    orderReference: "ORD-1006",
+    customerName: "Nova Distribution Centre",
+    deliveryAddress: "9 North Circular Gate",
+    latitude: 51.54,
+    longitude: -0.09,
+    weightKg: 950,
+    volumeM3: 5.2,
+    timeWindowStart: "13:00",
+    timeWindowEnd: "17:00",
+    status: "CANCELED",
+    assignedVehicleId: null,
+    priority: "STANDARD",
+  },
 ];
+
+import { plansStore } from "@/lib/plans/store";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const vehicleId = searchParams.get("vehicleId");
+  const planId = searchParams.get("planId");
 
-  let filtered = [...inMemoryOrders];
-  if (status) {
+  let ordersList: any[] = [];
+
+  // Check if plans exist in plansStore
+  const allStoredPlans = Array.from(plansStore.values());
+  const targetPlan = planId
+    ? plansStore.get(planId)
+    : allStoredPlans.length > 0
+    ? allStoredPlans[allStoredPlans.length - 1]
+    : null;
+
+  if (targetPlan && targetPlan.orders && targetPlan.orders.length > 0) {
+    ordersList = targetPlan.orders.map((o) => ({
+      id: o.id,
+      orderReference: o.orderReference,
+      customerName: o.customerName,
+      deliveryAddress: o.deliveryAddress,
+      latitude: o.latitude,
+      longitude: o.longitude,
+      weightKg: o.weightKg,
+      volumeM3: o.volumeM3,
+      timeWindowStart: o.timeWindowStart,
+      timeWindowEnd: o.timeWindowEnd,
+      serviceDurationMinutes: o.serviceDurationMinutes,
+      status: o.status,
+      assignedVehicleId: o.assignedVehicleId || null,
+      priority: o.priority,
+      eta: o.eta,
+    }));
+  } else {
+    ordersList = [...inMemoryOrders];
+  }
+
+  let filtered = [...ordersList];
+  if (status && status !== "ALL") {
     filtered = filtered.filter((o) => o.status === status);
   }
   if (vehicleId) {

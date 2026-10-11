@@ -1,29 +1,55 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import L from "leaflet";
 import {
   Truck,
   MapPin,
-  AlertOctagon,
-  X,
-  ZoomIn,
-  ZoomOut,
   Maximize2,
+  Navigation,
+  Building2,
   Layers,
-  Info,
+  CheckCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
+export interface GeoMarker {
+  id: string;
+  type: "DEPOT" | "STOP" | "VEHICLE" | "INCIDENT";
+  lat: number;
+  lng: number;
+  label: string;
+  sublabel?: string;
+  status?: string;
+  vehicleCode?: string;
+  orderRef?: string;
+  stopNumber?: number;
+  color?: string; // Color matching corresponding fleet route
+}
+
+export interface GeoRoute {
+  id: string;
+  vehicleCode?: string;
+  driverName?: string;
+  color: string;
+  coordinates: [number, number][]; // [lat, lng] array
+  distanceKm?: number;
+  stopsCount?: number;
+}
+
+// Legacy format compatibility
 export interface MapMarker {
   id: string;
   type: "VEHICLE" | "STOP" | "INCIDENT" | "BLOCKED_ROAD";
-  x: number; // 0 to 100 percentage for scalable SVG grid
-  y: number; // 0 to 100 percentage
+  x: number;
+  y: number;
   label: string;
   status?: string;
   vehicleCode?: string;
   orderRef?: string;
   stopNumber?: number;
+  lat?: number;
+  lng?: number;
+  color?: string;
 }
 
 export interface RouteLine {
@@ -31,276 +57,358 @@ export interface RouteLine {
   type: "COMMITTED" | "PROPOSED" | "COMPLETED";
   color: string;
   points: { x: number; y: number }[];
+  coordinates?: [number, number][];
 }
 
 interface FleetMapProps {
   markers?: MapMarker[];
   routes?: RouteLine[];
-  onMarkerClick?: (marker: MapMarker) => void;
+  geoMarkers?: GeoMarker[];
+  geoRoutes?: GeoRoute[];
+  centerLat?: number;
+  centerLng?: number;
+  zoom?: number;
   className?: string;
 }
 
-const DEFAULT_MARKERS: MapMarker[] = [
-  // Depot
-  { id: "M-DEPOT", type: "STOP", x: 15, y: 30, label: "Central Hub Depot", status: "DELIVERED", stopNumber: 0 },
-  // TRK-01 stops & vehicle
-  { id: "M-TRK01", type: "VEHICLE", x: 38, y: 42, label: "Truck Alpha (TRK-01)", vehicleCode: "TRK-01", status: "ACTIVE_VEHICLE" },
-  { id: "M-STOP-1", type: "STOP", x: 28, y: 35, label: "Astra Tech Labs", orderRef: "ORD-1001", stopNumber: 1, status: "DELIVERED" },
-  { id: "M-STOP-2", type: "STOP", x: 45, y: 48, label: "BioGen Research", orderRef: "ORD-1002", stopNumber: 2, status: "PENDING" },
-  { id: "M-STOP-3", type: "STOP", x: 55, y: 32, label: "Vortex Quantum", orderRef: "ORD-1004", stopNumber: 3, status: "PENDING" },
-  // TRK-02 stops & vehicle & incident
-  { id: "M-TRK02", type: "VEHICLE", x: 62, y: 68, label: "Truck Beta (TRK-02)", vehicleCode: "TRK-02", status: "DELAYED_ROUTE" },
-  { id: "M-STOP-4", type: "STOP", x: 40, y: 75, label: "Apex Logistics", orderRef: "ORD-1003", stopNumber: 1, status: "DELIVERED" },
-  { id: "M-INCIDENT", type: "INCIDENT", x: 52, y: 70, label: "Road Closure (Bypass)", status: "DISRUPTION" },
-  { id: "M-BLOCKED", type: "BLOCKED_ROAD", x: 50, y: 72, label: "Roadblock Barrier", status: "FAILED" },
-];
-
-const DEFAULT_ROUTES: RouteLine[] = [
-  // TRK-01 Committed solid route (Task 128)
-  {
-    id: "R-TRK01",
-    type: "COMMITTED",
-    color: "#2563EB",
-    points: [{ x: 15, y: 30 }, { x: 28, y: 35 }, { x: 38, y: 42 }, { x: 45, y: 48 }, { x: 55, y: 32 }],
-  },
-  // TRK-02 Proposed dashed replan route (Task 128)
-  {
-    id: "R-TRK02",
-    type: "PROPOSED",
-    color: "#7C3AED",
-    points: [{ x: 15, y: 30 }, { x: 40, y: 75 }, { x: 62, y: 68 }, { x: 75, y: 80 }],
-  },
-];
+// Default Depot: Swargate Multimodal Hub & Depot Center, Pune, Maharashtra, India
+// Exact Coordinates: Latitude 18.5018° N, Longitude 73.8586° E
+const DEFAULT_INDIA_LAT = 18.5018;
+const DEFAULT_INDIA_LNG = 73.8586;
 
 export function FleetMap({
-  markers = DEFAULT_MARKERS,
-  routes = DEFAULT_ROUTES,
-  onMarkerClick,
+  markers,
+  routes,
+  geoMarkers,
+  geoRoutes,
+  centerLat = DEFAULT_INDIA_LAT,
+  centerLng = DEFAULT_INDIA_LNG,
+  zoom = 12,
   className = "",
 }: FleetMapProps) {
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [showLegend, setShowLegend] = useState(true);
-  const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const layersGroupRef = useRef<L.LayerGroup | null>(null);
 
-  const handleZoomIn = () => setZoomLevel((z) => Math.min(z + 0.25, 2.5));
-  const handleZoomOut = () => setZoomLevel((z) => Math.max(z - 0.25, 0.75));
-  const handleRecenter = () => setZoomLevel(1);
+  const [activeRegion, setActiveRegion] = useState<string>("Pune (Swargate)");
 
-  return (
-    <div
-      className={`relative w-full h-[540px] rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--map-canvas)] shadow-xs select-none ${className}`}
-    >
-      {/* Scalable Vector Map Canvas */}
-      <div
-        className="w-full h-full relative transition-transform duration-200 ease-out origin-center"
-        style={{ transform: `scale(${zoomLevel})` }}
-      >
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            {/* Road network grid patterns */}
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--border-subtle)" strokeWidth="0.8" opacity="0.4" />
-            </pattern>
-          </defs>
+  // Normalize all markers to geographic lat/lng
+  const effectiveGeoMarkers: GeoMarker[] = React.useMemo(() => {
+    if (geoMarkers && geoMarkers.length > 0) return geoMarkers;
 
-          <rect width="100%" height="100%" fill="url(#grid)" />
+    // Convert legacy markers if lat/lng are provided or map to Swargate Pune region
+    if (markers && markers.length > 0) {
+      return markers.map((m) => {
+        // If explicit lat/lng are on the marker, use them
+        if (typeof m.lat === "number" && typeof m.lng === "number") {
+          return {
+            id: m.id,
+            type: m.type === "VEHICLE" ? "VEHICLE" : m.stopNumber === 0 ? "DEPOT" : "STOP",
+            lat: m.lat,
+            lng: m.lng,
+            label: m.label,
+            status: m.status,
+            vehicleCode: m.vehicleCode,
+            orderRef: m.orderRef,
+            stopNumber: m.stopNumber,
+            color: m.color,
+          };
+        }
+        // Fallback India-spread coordinates around Swargate Pune hub
+        const spreadLat = DEFAULT_INDIA_LAT + (m.y - 50) * 0.003;
+        const spreadLng = DEFAULT_INDIA_LNG + (m.x - 50) * 0.003;
+        return {
+          id: m.id,
+          type: m.type === "VEHICLE" ? "VEHICLE" : m.stopNumber === 0 ? "DEPOT" : "STOP",
+          lat: spreadLat,
+          lng: spreadLng,
+          label: m.label,
+          status: m.status,
+          vehicleCode: m.vehicleCode,
+          orderRef: m.orderRef,
+          stopNumber: m.stopNumber,
+          color: m.color,
+        };
+      });
+    }
 
-          {/* Render Route Polylines (Task 128) */}
-          {routes.map((route) => {
-            const pathData = route.points.reduce((acc, pt, idx) => {
-              const cmd = idx === 0 ? "M" : "L";
-              return `${acc} ${cmd} ${pt.x}% ${pt.y}%`;
-            }, "");
+    return [];
+  }, [geoMarkers, markers]);
 
-            const isProposed = route.type === "PROPOSED";
+  // Normalize all routes to geographic coordinates
+  const effectiveGeoRoutes: GeoRoute[] = React.useMemo(() => {
+    if (geoRoutes && geoRoutes.length > 0) return geoRoutes;
 
-            return (
-              <path
-                key={route.id}
-                d={pathData}
-                fill="none"
-                stroke={route.color}
-                strokeWidth={isProposed ? "3.5" : "3"}
-                strokeDasharray={isProposed ? "6 6" : undefined}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity="0.85"
-              />
-            );
-          })}
-        </svg>
+    if (routes && routes.length > 0) {
+      return routes.map((r) => {
+        if (r.coordinates && r.coordinates.length > 0) {
+          return {
+            id: r.id,
+            color: r.color,
+            coordinates: r.coordinates,
+          };
+        }
+        // Fallback
+        const coords: [number, number][] = r.points.map((p) => [
+          DEFAULT_INDIA_LAT + (p.y - 50) * 0.003,
+          DEFAULT_INDIA_LNG + (p.x - 50) * 0.003,
+        ]);
+        return {
+          id: r.id,
+          color: r.color,
+          coordinates: coords,
+        };
+      });
+    }
 
-        {/* Map Interactive Markers (Tasks 126, 127, 129, 130) */}
-        {markers.map((marker) => {
-          const isSelected = selectedMarker?.id === marker.id;
+    return [];
+  }, [geoRoutes, routes]);
 
-          // 1. Vehicle Markers (28px circle, fill by state - Task 126)
-          if (marker.type === "VEHICLE") {
-            const isDelayed = marker.status === "DELAYED_ROUTE";
-            const bgClass = isDelayed ? "bg-[var(--warning)]" : "bg-[var(--primary)]";
+  // Initialize Leaflet Map instance
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
 
-            return (
-              <div
-                key={marker.id}
-                onClick={() => {
-                  setSelectedMarker(marker);
-                  if (onMarkerClick) onMarkerClick(marker);
-                }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 z-20 group"
-                style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-              >
-                <div
-                  className={`w-7 h-7 rounded-full ${bgClass} text-white flex items-center justify-center shadow-md border-2 border-white`}
-                >
-                  <Truck className="h-4 w-4" />
-                </div>
-                <div className="hidden group-hover:block absolute left-1/2 -translate-x-1/2 bottom-8 bg-[var(--surface-elevated)] border border-[var(--border)] px-2 py-1 rounded shadow-lg text-[10px] whitespace-nowrap font-semibold">
-                  {marker.label}
-                </div>
-              </div>
-            );
-          }
+    if (!mapInstanceRef.current) {
+      // Determine initial center
+      let initialLat = centerLat;
+      let initialLng = centerLng;
 
-          // 2. Delivery Stop Markers (24px numbered circle by state - Task 127)
-          if (marker.type === "STOP") {
-            const isDelivered = marker.status === "DELIVERED";
-            const bgClass = isDelivered ? "bg-[var(--success)]" : "bg-[var(--surface-elevated)]";
-            const textClass = isDelivered ? "text-white" : "text-[var(--foreground)]";
+      if (effectiveGeoMarkers.length > 0) {
+        initialLat = effectiveGeoMarkers[0].lat;
+        initialLng = effectiveGeoMarkers[0].lng;
+      }
 
-            return (
-              <div
-                key={marker.id}
-                onClick={() => {
-                  setSelectedMarker(marker);
-                  if (onMarkerClick) onMarkerClick(marker);
-                }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 z-10 group"
-                style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-              >
-                <div
-                  className={`w-6 h-6 rounded-full ${bgClass} ${textClass} border-2 border-[var(--border-strong)] flex items-center justify-center font-mono text-[11px] font-bold shadow-xs`}
-                >
-                  {marker.stopNumber ?? "#"}
-                </div>
-                <div className="hidden group-hover:block absolute left-1/2 -translate-x-1/2 bottom-7 bg-[var(--surface-elevated)] border border-[var(--border)] px-2 py-1 rounded shadow-lg text-[10px] whitespace-nowrap font-medium">
-                  {marker.label} {marker.orderRef ? `(${marker.orderRef})` : ""}
-                </div>
-              </div>
-            );
-          }
+      const map = L.map(mapContainerRef.current, {
+        center: [initialLat, initialLng],
+        zoom: zoom,
+        zoomControl: true,
+        attributionControl: true,
+      });
 
-          // 3. Incident Location Marker (Task 130)
-          if (marker.type === "INCIDENT") {
-            return (
-              <div
-                key={marker.id}
-                onClick={() => {
-                  setSelectedMarker(marker);
-                  if (onMarkerClick) onMarkerClick(marker);
-                }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-30 animate-bounce group"
-                style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-              >
-                <div className="w-8 h-8 rounded-full bg-[var(--destructive)] text-white flex items-center justify-center shadow-lg border-2 border-white">
-                  <AlertOctagon className="h-4 w-4" />
-                </div>
-                <div className="hidden group-hover:block absolute left-1/2 -translate-x-1/2 bottom-9 bg-[var(--surface-elevated)] border border-[var(--destructive-border)] px-2 py-1 rounded shadow-lg text-[10px] whitespace-nowrap text-[var(--destructive)] font-bold">
-                  {marker.label}
-                </div>
-              </div>
-            );
-          }
+      // Real OpenStreetMap Tile Layer (India & Worldwide Road Map)
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
 
-          // 4. Blocked Road Marker (destructive with X marker - Task 129)
-          if (marker.type === "BLOCKED_ROAD") {
-            return (
-              <div
-                key={marker.id}
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none"
-                style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-              >
-                <div className="w-6 h-6 rounded-md bg-[var(--destructive)] text-white flex items-center justify-center shadow-md">
-                  <X className="h-4 w-4 stroke-[3]" />
-                </div>
-              </div>
-            );
-          }
+      const layersGroup = L.layerGroup().addTo(map);
+      layersGroupRef.current = layersGroup;
+      mapInstanceRef.current = map;
+    }
 
-          return null;
-        })}
-      </div>
+    const map = mapInstanceRef.current;
+    const layersGroup = layersGroupRef.current;
+    if (!map || !layersGroup) return;
 
-      {/* Map Controls: Zoom, Recenter, Legend Toggle (Task 131) */}
-      <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-lg p-1 shadow-sm">
-        <button
-          type="button"
-          onClick={handleZoomIn}
-          className="p-1.5 hover:bg-[var(--surface-hover)] rounded text-[var(--foreground)] cursor-pointer"
-          aria-label="Zoom in"
-        >
-          <ZoomIn className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={handleZoomOut}
-          className="p-1.5 hover:bg-[var(--surface-hover)] rounded text-[var(--foreground)] cursor-pointer"
-          aria-label="Zoom out"
-        >
-          <ZoomOut className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={handleRecenter}
-          className="p-1.5 hover:bg-[var(--surface-hover)] rounded text-[var(--foreground)] cursor-pointer"
-          aria-label="Recenter map"
-        >
-          <Maximize2 className="h-4 w-4" />
-        </button>
-      </div>
+    // Clear previous layers
+    layersGroup.clearLayers();
 
-      {/* Map Legend Overlay (Task 131) */}
-      {showLegend && (
-        <div className="absolute bottom-6 left-3 z-30 bg-[var(--surface-elevated)]/95 backdrop-blur-xs border border-[var(--border)] rounded-lg p-3 shadow-md text-xs flex flex-col gap-1.5 min-w-[200px]">
-          <div className="flex items-center justify-between pb-1 border-b border-[var(--border-subtle)]">
-            <span className="font-semibold text-[11px] text-[var(--foreground)]">Map Symbol Legend</span>
-            <button
-              type="button"
-              onClick={() => setShowLegend(false)}
-              className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer"
-            >
-              <X className="h-3 w-3" />
-            </button>
+    const boundsLatLngs: L.LatLngExpression[] = [];
+
+    // 1. Draw Routes (Road Polylines on India map)
+    effectiveGeoRoutes.forEach((route) => {
+      if (route.coordinates && route.coordinates.length > 1) {
+        const polyline = L.polyline(route.coordinates, {
+          color: route.color || "#2563EB",
+          weight: 4.5,
+          opacity: 0.85,
+          lineJoin: "round",
+          lineCap: "round",
+        });
+
+        polyline.bindPopup(`
+          <div style="font-family:sans-serif; padding:4px;">
+            <div style="font-weight:bold; font-size:12px; color:#2D3139;">${route.vehicleCode || route.id} Active Route</div>
+            <div style="font-size:11px; color:#6B7280; margin-top:2px;">
+              ${route.driverName ? `Driver: ${route.driverName}<br/>` : ""}
+              ${route.distanceKm ? `Distance: ${route.distanceKm} km<br/>` : ""}
+              ${route.stopsCount ? `Stops: ${route.stopsCount}` : ""}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[var(--primary)] shrink-0" />
-            <span>Active Vehicle (28px)</span>
+        `);
+
+        layersGroup.addLayer(polyline);
+        route.coordinates.forEach((c) => boundsLatLngs.push(c));
+      }
+    });
+
+    // 2. Draw Markers (Depot, Stops, Vehicles on India map)
+    effectiveGeoMarkers.forEach((m) => {
+      boundsLatLngs.push([m.lat, m.lng]);
+
+      let iconHtml = "";
+
+      if (m.type === "DEPOT") {
+        // Central Depot Center Pin (Dispatcher Workplace)
+        iconHtml = `
+          <div style="background:#1E222A; color:#FFFFFF; border:2px solid #F59E0B; border-radius:8px; padding:3px 7px; font-weight:700; font-size:10px; display:flex; align-items:center; gap:4px; box-shadow:0 3px 10px rgba(0,0,0,0.35); white-space:nowrap; transform:translate(-50%, -50%);">
+            <span style="color:#F59E0B;">🏢</span>
+            <span>DEPOT: ${m.label}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[var(--success)] shrink-0" />
-            <span>Delivered Stop (24px)</span>
+        `;
+      } else if (m.type === "VEHICLE") {
+        // Commercial Fleet Vehicle Marker matching exact route line color
+        const vehicleColor = m.color || "#2563EB";
+        iconHtml = `
+          <div style="background:${vehicleColor}; color:#FFFFFF; border:2px solid #FFFFFF; border-radius:8px; padding:3px 8px; font-weight:800; font-size:11px; display:flex; align-items:center; gap:5px; box-shadow:0 4px 12px rgba(0,0,0,0.35); white-space:nowrap; transform:translate(-50%, -50%);">
+            <span style="font-size:12px;">🚚</span>
+            <span>${m.vehicleCode || m.label}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full border border-[var(--border-strong)] bg-white shrink-0" />
-            <span>Pending Stop</span>
+        `;
+      } else {
+        // Customer Delivery Stop Marker
+        const isDelivered = m.status === "DELIVERED" || m.status === "COMPLETED";
+        const bg = m.color || (isDelivered ? "#10B981" : "#2563EB");
+        iconHtml = `
+          <div style="background:${bg}; color:white; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:11px; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.25); transform:translate(-50%, -50%);">
+            ${m.stopNumber ?? "#"}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-0.5 bg-[#2563EB] shrink-0" />
-            <span>Committed Route (Solid)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-0.5 border-b border-dashed border-[#7C3AED] shrink-0" />
-            <span>Proposed Replan (Dashed)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[var(--destructive)] shrink-0" />
-            <span>Incident / Road Closure</span>
+        `;
+      }
+
+      const customIcon = L.divIcon({
+        html: iconHtml,
+        className: "custom-leaflet-marker",
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      });
+
+      const marker = L.marker([m.lat, m.lng], { icon: customIcon });
+
+      marker.bindPopup(`
+        <div style="font-family:sans-serif; min-width:180px; padding:2px;">
+          <div style="font-weight:bold; font-size:13px; color:#1F2937;">${m.label}</div>
+          ${m.sublabel ? `<div style="font-size:11px; color:#6B7280; margin-top:2px;">${m.sublabel}</div>` : ""}
+          <div style="margin-top:6px; font-size:11px; border-top:1px solid #E5E7EB; pt:4px;">
+            <div><strong>Location:</strong> ${m.lat.toFixed(4)}° N, ${m.lng.toFixed(4)}° E</div>
+            ${m.orderRef ? `<div><strong>Order:</strong> ${m.orderRef}</div>` : ""}
+            ${m.status ? `<div><strong>Status:</strong> <span style="color:#059669; font-weight:600;">${m.status}</span></div>` : ""}
           </div>
         </div>
-      )}
+      `);
 
-      {/* Permanent OpenStreetMap Attribution (Task 125, TRD OSM-1) */}
-      <div className="absolute bottom-1 right-2 z-30 text-[10px] text-[var(--muted-foreground)] bg-[var(--surface)]/80 px-2 py-0.5 rounded pointer-events-auto">
-        © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline hover:text-[var(--primary)]">OpenStreetMap</a> contributors · MapLibre GL
+      layersGroup.addLayer(marker);
+    });
+
+    // Auto-fit bounds if we have geographic coordinates
+    if (boundsLatLngs.length > 0) {
+      try {
+        const bounds = L.latLngBounds(boundsLatLngs);
+        map.fitBounds(bounds, { padding: [45, 45], maxZoom: 14 });
+      } catch (err) {
+        console.warn("Could not fit bounds:", err);
+      }
+    }
+  }, [effectiveGeoMarkers, effectiveGeoRoutes, centerLat, centerLng, zoom]);
+
+  // Clean up Leaflet on unmount
+  useEffect(() => {
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  const jumpToRegion = (name: string, lat: number, lng: number, zoomLvl: number) => {
+    setActiveRegion(name);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([lat, lng], zoomLvl, { animate: true });
+    }
+  };
+
+  const handleFitAll = () => {
+    if (!mapInstanceRef.current) return;
+    const allCoords: L.LatLngExpression[] = [];
+    effectiveGeoMarkers.forEach((m) => allCoords.push([m.lat, m.lng]));
+    effectiveGeoRoutes.forEach((r) => r.coordinates.forEach((c) => allCoords.push(c)));
+    if (allCoords.length > 0) {
+      mapInstanceRef.current.fitBounds(L.latLngBounds(allCoords), { padding: [40, 40] });
+    }
+  };
+
+  return (
+    <div className={`relative w-full rounded-xl overflow-hidden border border-[var(--border)] shadow-xs ${className}`}>
+      {/* Top Map Action Bar */}
+      <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-1.5 bg-[var(--surface-elevated)]/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-[var(--border)] shadow-md text-xs">
+        <span className="font-bold text-[var(--foreground)] flex items-center gap-1 mr-1">
+          <MapPin className="h-3.5 w-3.5 text-rose-500" /> India Map:
+        </span>
+        <button
+          onClick={() => jumpToRegion("Pune (Swargate)", 18.5018, 73.8586, 13)}
+          className={`px-2 py-0.5 rounded font-medium transition-all ${
+            activeRegion === "Pune (Swargate)"
+              ? "bg-[var(--primary)] text-white font-bold"
+              : "hover:bg-[var(--surface-secondary)] text-[var(--foreground)]"
+          }`}
+        >
+          📍 Pune (Swargate)
+        </button>
+        <button
+          onClick={() => jumpToRegion("Mumbai", 19.0760, 72.8777, 12)}
+          className={`px-2 py-0.5 rounded font-medium transition-all ${
+            activeRegion === "Mumbai"
+              ? "bg-[var(--primary)] text-white font-bold"
+              : "hover:bg-[var(--surface-secondary)] text-[var(--foreground)]"
+          }`}
+        >
+          Mumbai
+        </button>
+        <button
+          onClick={() => jumpToRegion("Bengaluru", 12.9716, 77.5946, 12)}
+          className={`px-2 py-0.5 rounded font-medium transition-all ${
+            activeRegion === "Bengaluru"
+              ? "bg-[var(--primary)] text-white font-bold"
+              : "hover:bg-[var(--surface-secondary)] text-[var(--foreground)]"
+          }`}
+        >
+          Bengaluru
+        </button>
+        <button
+          onClick={() => jumpToRegion("Delhi NCR", 28.6139, 77.2090, 11)}
+          className={`px-2 py-0.5 rounded font-medium transition-all ${
+            activeRegion === "Delhi NCR"
+              ? "bg-[var(--primary)] text-white font-bold"
+              : "hover:bg-[var(--surface-secondary)] text-[var(--foreground)]"
+          }`}
+        >
+          Delhi NCR
+        </button>
+        <div className="h-3 w-[1px] bg-[var(--border)] mx-1" />
+        <button
+          onClick={handleFitAll}
+          className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[var(--surface-secondary)] text-[var(--foreground)] font-medium"
+        >
+          <Maximize2 className="h-3 w-3" /> Fit Route Bounds
+        </button>
+      </div>
+
+      {/* Real OpenStreetMap Canvas */}
+      <div
+        ref={mapContainerRef}
+        id="india-route-map"
+        className="w-full h-[520px] bg-[#E5E7EB] z-0"
+      />
+
+      {/* Map Legend Overlay */}
+      <div className="absolute bottom-3 right-3 z-[1000] bg-[var(--surface-elevated)]/90 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--border)] shadow-md text-[11px] flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-[#1E222A] border border-[#F59E0B]" />
+          <span className="font-semibold text-[var(--foreground)]">Central Depot (India)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-[#2563EB]" />
+          <span className="text-[var(--muted-foreground)]">Pending Stop</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-[#10B981]" />
+          <span className="text-[var(--muted-foreground)]">Delivered Stop</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-1 bg-[#2563EB] rounded" />
+          <span className="text-[var(--muted-foreground)]">OSRM Road Route</span>
+        </div>
       </div>
     </div>
   );

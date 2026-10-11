@@ -1,45 +1,63 @@
 "use client";
 
-import React, { forwardRef } from "react";
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
-export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "icon";
-export type ButtonSize = "sm" | "default" | "lg" | "xl";
+export const buttonVariants = cva(
+  "inline-flex items-center justify-center font-semibold rounded-xl text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D3139] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer tracking-tight",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-[#2D3139] text-white hover:bg-[#3D434E] dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white shadow-xs active:scale-[0.99]",
+        primary:
+          "bg-[#2D3139] text-white hover:bg-[#3D434E] dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white shadow-xs active:scale-[0.99]",
+        secondary:
+          "bg-neutral-100 text-[#272A30] hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 border border-neutral-200/80 dark:border-neutral-700",
+        outline:
+          "border border-neutral-200/90 bg-white text-[#272A30] hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800 shadow-2xs",
+        ghost:
+          "bg-transparent text-neutral-600 hover:text-[#272A30] hover:bg-neutral-100/80 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-neutral-800",
+        danger:
+          "bg-red-600 text-white hover:bg-red-700 shadow-xs active:scale-[0.99]",
+        icon:
+          "p-2 bg-transparent text-neutral-600 hover:text-[#272A30] hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-neutral-800 rounded-xl",
+      },
+      size: {
+        default: "h-9.5 px-4 text-xs gap-2",
+        sm: "h-8.5 px-3.5 text-xs gap-1.5",
+        lg: "h-11 px-5 text-sm gap-2.5",
+        xl: "h-12.5 px-6 text-base gap-3",
+        icon: "h-9 w-9 p-0",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "icon" | "default";
+export type ButtonSize = "sm" | "default" | "lg" | "xl" | "icon";
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className = "", variant = "primary", size = "default", isLoading = false, disabled, children, leftIcon, rightIcon, ...props }, ref) => {
-    const baseStyles =
-      "inline-flex items-center justify-center font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer";
-
-    const variantStyles: Record<ButtonVariant, string> = {
-      primary: "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] active:bg-[var(--primary-active)] shadow-xs",
-      secondary: "bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-[var(--surface-hover)] border border-[var(--border)]",
-      outline: "border border-[var(--border)] bg-transparent text-[var(--foreground)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-secondary)]",
-      ghost: "bg-transparent text-[var(--text-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]",
-      danger: "bg-[var(--destructive)] text-[var(--destructive-foreground)] hover:opacity-90 active:opacity-95 shadow-xs",
-      icon: "p-2 bg-transparent text-[var(--text-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] rounded-lg",
-    };
-
-    const sizeStyles: Record<ButtonSize, string> = {
-      sm: variant === "icon" ? "p-1.5 text-xs" : "h-8 px-3 text-xs gap-1.5",
-      default: variant === "icon" ? "p-2 text-sm" : "h-9 px-4 text-sm gap-2",
-      lg: variant === "icon" ? "p-2.5 text-base" : "h-10 px-5 text-sm gap-2.5",
-      xl: variant === "icon" ? "p-3 text-lg" : "h-12 px-6 text-base gap-3",
-    };
-
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, isLoading = false, disabled, children, leftIcon, rightIcon, ...props }, ref) => {
     return (
       <button
         ref={ref}
         disabled={disabled || isLoading}
-        className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+        className={cn(buttonVariants({ variant, size, className }))}
         {...props}
       >
         {isLoading ? (

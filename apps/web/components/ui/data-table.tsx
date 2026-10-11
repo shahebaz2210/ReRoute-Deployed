@@ -2,6 +2,15 @@
 
 import React, { useState } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "./table";
 
 export interface Column<T> {
   key: string;
@@ -29,7 +38,7 @@ export function DataTable<T extends Record<string, any>>({
   onRowClick,
   isLoading = false,
   emptyMessage = "No records found.",
-  className = "",
+  className,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -61,34 +70,36 @@ export function DataTable<T extends Record<string, any>>({
   }, [data, sortKey, sortDirection]);
 
   return (
-    <div className={`w-full overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] ${className}`}>
-      <table className="w-full text-left border-collapse">
-        <thead className="sticky top-0 z-10 bg-[var(--surface-secondary)] border-b border-[var(--border)] text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] select-none">
-          <tr>
+    <div className={cn("w-full overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-2xs", className)}>
+      <Table>
+        <TableHeader>
+          <TableRow>
             {columns.map((col) => {
               const isSorted = sortKey === col.key;
               return (
-                <th
+                <TableHead
                   key={col.key}
                   style={{ width: col.width }}
                   onClick={() => col.sortable && handleSort(col.key)}
-                  className={`h-9 px-3 py-2 ${col.sortable ? "cursor-pointer hover:text-[var(--foreground)]" : ""} ${
+                  className={cn(
+                    col.sortable && "cursor-pointer hover:text-[#272A30]",
                     col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
-                  }`}
+                  )}
                 >
                   <div
-                    className={`inline-flex items-center gap-1.5 ${
+                    className={cn(
+                      "inline-flex items-center gap-1.5",
                       col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "justify-start"
-                    }`}
+                    )}
                   >
                     <span>{col.header}</span>
                     {col.sortable && (
-                      <span className="text-[var(--muted-foreground)]">
+                      <span className="text-neutral-400">
                         {isSorted ? (
                           sortDirection === "asc" ? (
-                            <ChevronUp className="h-3 w-3 text-[var(--primary)]" />
+                            <ChevronUp className="h-3 w-3 text-[#2D3139]" />
                           ) : (
-                            <ChevronDown className="h-3 w-3 text-[var(--primary)]" />
+                            <ChevronDown className="h-3 w-3 text-[#2D3139]" />
                           )
                         ) : (
                           <ChevronsUpDown className="h-3 w-3 opacity-40 hover:opacity-100" />
@@ -96,52 +107,52 @@ export function DataTable<T extends Record<string, any>>({
                       </span>
                     )}
                   </div>
-                </th>
+                </TableHead>
               );
             })}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--border-subtle)] text-xs text-[var(--foreground)]">
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {isLoading ? (
             Array.from({ length: 6 }).map((_, rIdx) => (
-              <tr key={rIdx} className="h-9">
+              <TableRow key={rIdx} className="h-10">
                 {columns.map((col) => (
-                  <td key={col.key} className="px-3 py-2">
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-[var(--surface-secondary)]" />
-                  </td>
+                  <TableCell key={col.key}>
+                    <div className="h-4 w-3/4 animate-pulse rounded-md bg-neutral-100" />
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))
           ) : sortedData.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="h-24 text-center text-xs text-[var(--muted-foreground)]">
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-28 text-center text-xs text-neutral-500">
                 {emptyMessage}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ) : (
             sortedData.map((row) => (
-              <tr
+              <TableRow
                 key={keyExtractor(row)}
                 onClick={() => onRowClick && onRowClick(row)}
-                className={`h-9 transition-colors ${
-                  onRowClick ? "cursor-pointer hover:bg-[var(--surface-hover)]" : "hover:bg-[var(--surface-hover)]"
-                }`}
+                className={cn(
+                  onRowClick && "cursor-pointer"
+                )}
               >
                 {columns.map((col) => (
-                  <td
+                  <TableCell
                     key={col.key}
-                    className={`px-3 py-2 font-normal ${
+                    className={cn(
                       col.align === "right" ? "text-right font-mono tabular-nums" : col.align === "center" ? "text-center" : "text-left"
-                    }`}
+                    )}
                   >
                     {col.render ? col.render(row) : String(row[col.key] ?? "—")}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

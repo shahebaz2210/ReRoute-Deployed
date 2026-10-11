@@ -27,7 +27,6 @@ export const IncidentTypeSchema = z.enum([
   "breakdown",
   "road_closure",
   "traffic_delay",
-  "urgent_order",
   "weather",
   "other",
 ]);

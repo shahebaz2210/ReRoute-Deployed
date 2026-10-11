@@ -39,7 +39,6 @@ export const incidentTypeEnum = pgEnum("incident_type", [
   "breakdown",
   "road_closure",
   "traffic_delay",
-  "urgent_order",
   "weather",
   "other",
 ]);

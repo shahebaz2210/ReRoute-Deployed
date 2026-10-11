@@ -358,3 +358,252 @@ export function parseDeliveryPlanBuffer(buffer: Buffer | ArrayBuffer, fileName: 
     },
   };
 }
+
+export interface ParsedVehicleRow {
+  rowNumber: number;
+  vehicleId: string;
+  vehicleCode: string;
+  weightCapacityKg: number;
+  volumeCapacityM3: number;
+  fuelEfficiencyKmPerL: number;
+  fuelEfficiencyUnit: string;
+  vehicleType: string;
+  available: boolean;
+  shiftStartTime: string;
+  shiftEndTime: string;
+  startLocation: string;
+  endLocation: string;
+  depotLatitude?: number;
+  depotLongitude?: number;
+  rawRow: Record<string, unknown>;
+}
+
+export interface VehiclesIngestionResult {
+  success: boolean;
+  fileName: string;
+  totalRows: number;
+  validRows: ParsedVehicleRow[];
+  errors: IngestionRowError[];
+  depotCenter: {
+    id: string;
+    latitude: number;
+    longitude: number;
+  };
+}
+
+/**
+ * Parses and validates vehicles.csv.
+ * Enforces that every vehicle belongs to strictly one Depot Center / Dispatcher workplace.
+ */
+export function parseVehiclesPlanBuffer(
+  buffer: Buffer | ArrayBuffer,
+  fileName: string,
+  defaultDepotCoords = { latitude: 18.5018, longitude: 73.8586 }
+): VehiclesIngestionResult {
+  const byteLength = buffer instanceof Buffer ? buffer.length : buffer.byteLength;
+
+  if (byteLength > MAX_FILE_SIZE_BYTES) {
+    return {
+      success: false,
+      fileName,
+      totalRows: 0,
+      validRows: [],
+      errors: [
+        {
+          rowNumber: 0,
+          column: "file",
+          value: `${(byteLength / (1024 * 1024)).toFixed(2)} MB`,
+          code: "FILE_TOO_LARGE",
+          message: "Vehicles plan exceeds maximum allowed file size of 2 MB.",
+        },
+      ],
+      depotCenter: { id: "DC01", ...defaultDepotCoords },
+    };
+  }
+
+  let workbook: XLSX.WorkBook;
+  try {
+    workbook = XLSX.read(buffer, { type: "buffer" });
+  } catch {
+    return {
+      success: false,
+      fileName,
+      totalRows: 0,
+      validRows: [],
+      errors: [
+        {
+          rowNumber: 0,
+          column: "file",
+          value: fileName,
+          code: "INVALID_FILE_FORMAT",
+          message: "Unable to parse vehicles CSV/Excel file.",
+        },
+      ],
+      depotCenter: { id: "DC01", ...defaultDepotCoords },
+    };
+  }
+
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+  const errors: IngestionRowError[] = [];
+  const validRows: ParsedVehicleRow[] = [];
+  const seenIds = new Set<string>();
+
+  let commonDepotLat = defaultDepotCoords.latitude;
+  let commonDepotLng = defaultDepotCoords.longitude;
+  let depotLocked = false;
+  let depotId = "DC01";
+
+  rawRows.forEach((row, index) => {
+    const rowNumber = index + 2;
+    let rowHasError = false;
+
+    const normalized: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(row)) {
+      const cleanKey = key.trim().toLowerCase().replace(/[\s.-]+/g, "_");
+      normalized[cleanKey] = val;
+    }
+
+    // 1. Vehicle ID
+    const rawId = sanitizeCellString(
+      normalized["vehicle_id"] || normalized["id"] || normalized["code"]
+    );
+    if (!rawId) {
+      errors.push({
+        rowNumber,
+        column: "vehicle_id",
+        value: rawId,
+        code: "REQUIRED_FIELD_MISSING",
+        message: "Vehicle ID is required.",
+      });
+      rowHasError = true;
+    } else if (hasFormulaInjection(rawId)) {
+      errors.push({
+        rowNumber,
+        column: "vehicle_id",
+        value: rawId,
+        code: "FORMULA_INJECTION_DETECTED",
+        message: "Dangerous formula characters are forbidden.",
+      });
+      rowHasError = true;
+    } else if (seenIds.has(rawId)) {
+      errors.push({
+        rowNumber,
+        column: "vehicle_id",
+        value: rawId,
+        code: "DUPLICATE_VEHICLE_ID",
+        message: `Duplicate vehicle ID '${rawId}' detected.`,
+      });
+      rowHasError = true;
+    } else {
+      seenIds.add(rawId);
+    }
+
+    // 2. Weight Capacity
+    const weightCap = Number(
+      normalized["weight_capacity"] || normalized["max_weight_kg"] || normalized["capacity_kg"]
+    );
+    if (isNaN(weightCap) || weightCap <= 0) {
+      errors.push({
+        rowNumber,
+        column: "weight_capacity",
+        value: normalized["weight_capacity"],
+        code: "INVALID_CAPACITY",
+        message: "Vehicle weight capacity must be greater than 0 kg.",
+      });
+      rowHasError = true;
+    }
+
+    // 3. Volume Capacity
+    const volCap = Number(
+      normalized["volume_capacity"] || normalized["max_volume_m3"] || normalized["capacity_m3"]
+    );
+    if (isNaN(volCap) || volCap <= 0) {
+      errors.push({
+        rowNumber,
+        column: "volume_capacity",
+        value: normalized["volume_capacity"],
+        code: "INVALID_CAPACITY",
+        message: "Vehicle volume capacity must be greater than 0 m³.",
+      });
+      rowHasError = true;
+    }
+
+    // 4. Fuel Efficiency
+    const fuelEff = Number(
+      normalized["fuel_efficiency"] || normalized["fuel_efficiency_km_l"] || normalized["km_per_liter"] || 5.4
+    );
+
+    // 5. Shift Times
+    const shiftStart = sanitizeCellString(normalized["shift_start_time"] || normalized["shift_start"] || "08:00");
+    const shiftEnd = sanitizeCellString(normalized["shift_end_time"] || normalized["shift_end"] || "18:00");
+
+    // 6. Depot Location Verification (All vehicles must share the same Depot Center)
+    const rawDepotId = sanitizeCellString(normalized["start_location"] || normalized["depot_id"] || "DC01");
+    if (rawDepotId) {
+      depotId = rawDepotId;
+    }
+
+    const rowLat = Number(normalized["depot_latitude"] ?? normalized["start_latitude"] ?? normalized["latitude"]);
+    const rowLng = Number(normalized["depot_longitude"] ?? normalized["start_longitude"] ?? normalized["longitude"]);
+
+    if (!isNaN(rowLat) && !isNaN(rowLng) && rowLat >= -90 && rowLat <= 90 && rowLng >= -180 && rowLng <= 180) {
+      if (!depotLocked) {
+        commonDepotLat = rowLat;
+        commonDepotLng = rowLng;
+        depotLocked = true;
+      } else {
+        // Enforce strictly one depot center for the dispatcher
+        const diffLat = Math.abs(commonDepotLat - rowLat);
+        const diffLng = Math.abs(commonDepotLng - rowLng);
+        if (diffLat > 0.05 || diffLng > 0.05) {
+          errors.push({
+            rowNumber,
+            column: "start_location",
+            value: `${rowLat}, ${rowLng}`,
+            code: "MULTIPLE_DEPOTS_FORBIDDEN",
+            message: `Dispatcher belongs to strictly one depot center (${commonDepotLat.toFixed(4)}, ${commonDepotLng.toFixed(4)}). All vehicles must start at this same workplace.`,
+          });
+          rowHasError = true;
+        }
+      }
+    }
+
+    if (!rowHasError) {
+      validRows.push({
+        rowNumber,
+        vehicleId: rawId,
+        vehicleCode: sanitizeCellString(normalized["vehicle_code"] || rawId),
+        weightCapacityKg: weightCap,
+        volumeCapacityM3: volCap,
+        fuelEfficiencyKmPerL: isNaN(fuelEff) || fuelEff <= 0 ? 5.4 : fuelEff,
+        fuelEfficiencyUnit: sanitizeCellString(normalized["fuel_efficiency_unit"] || "km_per_litre"),
+        vehicleType: sanitizeCellString(normalized["vehicle_type"] || "medium_truck"),
+        available: normalized["available"] !== false && normalized["available"] !== "false" && normalized["available"] !== 0,
+        shiftStartTime: shiftStart,
+        shiftEndTime: shiftEnd,
+        startLocation: rawDepotId,
+        endLocation: rawDepotId,
+        depotLatitude: commonDepotLat,
+        depotLongitude: commonDepotLng,
+        rawRow: row,
+      });
+    }
+  });
+
+  return {
+    success: errors.length === 0,
+    fileName,
+    totalRows: rawRows.length,
+    validRows,
+    errors,
+    depotCenter: {
+      id: depotId,
+      latitude: commonDepotLat,
+      longitude: commonDepotLng,
+    },
+  };
+}
+

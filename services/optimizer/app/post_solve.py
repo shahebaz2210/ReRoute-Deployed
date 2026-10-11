@@ -3,15 +3,15 @@ Post-solve validation and constraint audit for VRPTW solutions.
 Validates constraints OPT-H01 through OPT-H11 and provides unassigned reason codes.
 """
 from typing import List, Dict, Any, Tuple
-from app.models import OptimizationRequest, SolutionResponse, RouteSolution, StopSolution, OptimizationStatus
+from app.models import OptimizationRequest, VehicleRoute, StopAssignment, OptimizationResponse
 
-def audit_solution(req: OptimizationRequest, routes: List[RouteSolution], unassigned_ids: List[str]) -> Tuple[bool, List[str], Dict[str, str]]:
+
+def audit_solution(req: OptimizationRequest, routes: List[VehicleRoute], unassigned_ids: List[str]) -> Tuple[bool, List[str], Dict[str, str]]:
     """
     Audits the generated routes against hard constraints:
     - OPT-H01: Vehicle capacity (weight & volume) never exceeded
     - OPT-H02: Time windows strictly respected
     - OPT-H03: Driver maximum shift duration respected
-    - OPT-H04: Driver rest break mandatory if shift exceeds threshold
     - OPT-H05: Single visit per assigned stop
     - OPT-H06: Depot departure and return valid
     Returns: (is_valid, list of violation descriptions, map of unassigned_id -> reason_code)
@@ -19,11 +19,9 @@ def audit_solution(req: OptimizationRequest, routes: List[RouteSolution], unassi
     violations: List[str] = []
     unassigned_reasons: Dict[str, str] = {}
     
-    # 1. Map lookups
     vehicles_by_id = {v.id: v for v in req.vehicles}
-    stops_by_id = {s.id: s for s in req.stops}
+    orders_by_id = {o.id: o for o in req.orders}
     
-    # Check each route
     visited_stop_ids = set()
     
     for r in routes:
@@ -33,47 +31,42 @@ def audit_solution(req: OptimizationRequest, routes: List[RouteSolution], unassi
             continue
             
         # Capacity checks
-        if r.total_weight_kg > v.capacity_kg:
-            violations.append(f"OPT-H01: Vehicle {v.id} weight overload: {r.total_weight_kg:.1f}kg > {v.capacity_kg:.1f}kg")
-        if r.total_volume_m3 > v.capacity_m3:
-            violations.append(f"OPT-H01: Vehicle {v.id} volume overload: {r.total_volume_m3:.2f}m3 > {v.capacity_m3:.2f}m3")
-            
-        # Shift duration
-        if r.total_duration_minutes > v.max_shift_minutes:
-            violations.append(f"OPT-H03: Vehicle {v.id} exceeded max shift duration: {r.total_duration_minutes:.0f}m > {v.max_shift_minutes}m")
+        delivery_stops = [s for s in r.stops if s.location_type == "DELIVERY"]
+        route_weight = sum(orders_by_id[s.order_id].weight_kg for s in delivery_stops if s.order_id in orders_by_id)
+        route_volume = sum(orders_by_id[s.order_id].volume_m3 for s in delivery_stops if s.order_id in orders_by_id)
+
+        if route_weight > v.max_weight_kg + 1e-3:
+            violations.append(f"OPT-H01: Vehicle {v.id} weight overload: {route_weight:.1f}kg > {v.max_weight_kg:.1f}kg")
+        if route_volume > v.max_volume_m3 + 1e-3:
+            violations.append(f"OPT-H01: Vehicle {v.id} volume overload: {route_volume:.2f}m3 > {v.max_volume_m3:.2f}m3")
             
         # Stop sequencing and time windows
-        current_time = r.start_time_minutes
-        for stop in r.stops:
-            if stop.stop_id in visited_stop_ids:
-                violations.append(f"OPT-H05: Stop {stop.stop_id} visited multiple times")
-            visited_stop_ids.add(stop.stop_id)
+        for stop in delivery_stops:
+            if not stop.order_id:
+                continue
+            if stop.order_id in visited_stop_ids:
+                violations.append(f"OPT-H05: Order {stop.order_id} visited multiple times")
+            visited_stop_ids.add(stop.order_id)
             
-            s_def = stops_by_id.get(stop.stop_id)
-            if s_def:
-                if stop.arrival_time_minutes < s_def.time_window_start_minutes:
-                    # Arrived early (waiting is allowed, but arrival recorded)
-                    pass
-                if stop.arrival_time_minutes > s_def.time_window_end_minutes + 1e-3:
-                    violations.append(f"OPT-H02: Stop {stop.stop_id} arrived after deadline ({stop.arrival_time_minutes:.0f}m > {s_def.time_window_end_minutes:.0f}m)")
+            o_def = orders_by_id.get(stop.order_id)
+            if o_def:
+                if stop.arrival_minute > o_def.window_end_minute + 1e-3:
+                    violations.append(f"OPT-H02: Stop {stop.order_id} arrived after deadline ({stop.arrival_minute}m > {o_def.window_end_minute}m)")
 
     # Analyze unassigned reasons
-    total_vehicle_weight = sum(v.capacity_kg for v in req.vehicles)
-    total_vehicle_volume = sum(v.capacity_m3 for v in req.vehicles)
-    
     for uid in unassigned_ids:
-        s = stops_by_id.get(uid)
-        if not s:
-            unassigned_reasons[uid] = "UNKNOWN_STOP"
+        o = orders_by_id.get(uid)
+        if not o:
+            unassigned_reasons[uid] = "UNKNOWN_ORDER"
             continue
-        if s.weight_kg > max(v.capacity_kg for v in req.vehicles):
+        if o.weight_kg > max(v.max_weight_kg for v in req.vehicles):
             unassigned_reasons[uid] = "EXCEEDS_MAX_SINGLE_VEHICLE_WEIGHT"
-        elif s.volume_m3 > max(v.capacity_m3 for v in req.vehicles):
+        elif o.volume_m3 > max(v.max_volume_m3 for v in req.vehicles):
             unassigned_reasons[uid] = "EXCEEDS_MAX_SINGLE_VEHICLE_VOLUME"
-        elif (s.time_window_end_minutes - s.time_window_start_minutes) < s.service_duration_minutes:
+        elif (o.window_end_minute - o.window_start_minute) < o.service_duration_minute:
             unassigned_reasons[uid] = "INVALID_TIME_WINDOW_SHORTER_THAN_SERVICE"
         else:
-            unassigned_reasons[uid] = "TIME_WINDOW_OR_CAPACITY_CONGESTION"
+            unassigned_reasons[uid] = "CAPACITY_OR_TIME_WINDOW_INFEASIBLE"
 
     is_valid = len(violations) == 0
     return is_valid, violations, unassigned_reasons

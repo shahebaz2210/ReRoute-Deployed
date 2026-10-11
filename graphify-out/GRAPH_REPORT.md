@@ -1,48 +1,48 @@
-# Graph Report - Vortexa Deployed  (2026-10-11)
+# Graph Report - Vortexa Deployed  (2026-10-12)
 
 ## Corpus Check
-- 146 files · ~116,122 words
+- 165 files · ~135,616 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 9 file(s) not represented in the graph (top: (none) 3, .example 1, .ico 1)
+- Unclassified: 10 file(s) not represented in the graph (top: (none) 4, .example 1, .ico 1)
 
 ## Summary
-- 873 nodes · 1318 edges · 64 communities (46 shown, 18 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 27 edges (avg confidence: 0.94)
+- 1028 nodes · 1670 edges · 77 communities (61 shown, 16 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 31 edges (avg confidence: 0.93)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6323f7b9`
+- Built from commit: `cae0a483`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- react
-- next
+- elevenlabs.ts
+- session.ts
 - schemas.ts
 - web/package.json
 - schema.ts
-- header.tsx
+- layout.tsx
 - package.json
 - plan-parser.ts
 - database/package.json
 - compilerOptions
-- audit-logger.ts
+- drizzle-orm
 - schemas.d.ts
 - contracts/package.json
 - compilerOptions
 - compilerOptions
 - Deployment Guide (Free Tier with Dynamic Git-Push Auto-Deploy)
 - Control Room Dashboard Cockpit
-- selection-controls.tsx
+- metrics.ts
 - DispatchX (ReRoute / VORTEXA 3.0) — Project TODO
-- models.py
-- skeleton.tsx
+- solver.py
+- new/page.tsx
 - mock-data.ts
 - dispatchx-optimizer
 - ⚡ DispatchX (VORTEXA 3.0 / ReRoute)
-- fleet-map.tsx
+- react
 - D. Mermaid Flowcharts
-- valhalla.ts
+- lucide-react
 - E. Screen-by-Screen Interaction Matrix
 - disruptions/route.ts
 - src/env.ts
@@ -50,12 +50,12 @@
 - A. Document Control and Product Boundaries
 - zod
 - J. Core Logistics Domain Invariants
-- drizzle-orm
+- store.ts
 - 📊 DispatchX — Implementation Status & Progress Tracker
 - C. Global Application Shell and Navigation
 - B. Sitemap and Route Topology
 - I. Network, Retry, and Re-authentication Protocols
-- uuid.js
+- compare/page.tsx
 - Q. Unresolved Decisions and Assumptions
 - F. Modal, Drawer, Popover, and Toast Registry
 - G. Frontend State Model and Ownership
@@ -67,86 +67,99 @@
 - migrations/README.md
 - optimizer/README.md
 - schema.js
-- position/route.ts
+- AppShell
 - orders/[id]/route.ts
-- env.js
-- client.d.ts
+- dependencies
+- next
 - uuid.d.ts
 - uuid.ts
-- metrics.ts
+- optimizer/client.ts
+- devDependencies
+- cn
+- components.json
+- button.tsx
+- vercel.json
+- valhalla.ts
+- drivers/route.ts
+- fleet/[id]/page.tsx
+- scripts
+- matrix-generator.ts
+- scripts
+- eslint.config.mjs
+- src/client.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `next` - 44 edges
-2. `react` - 37 edges
-3. `lucide-react` - 30 edges
-4. `AppShell()` - 29 edges
-5. `Button` - 28 edges
-6. `DispatchX (ReRoute / VORTEXA 3.0) — Project TODO` - 24 edges
-7. `StatusBadge()` - 17 edges
-8. `compilerOptions` - 16 edges
-9. `solve_vrptw()` - 16 edges
-10. `DataTable()` - 14 edges
+1. `cn()` - 61 edges
+2. `next` - 44 edges
+3. `react` - 43 edges
+4. `lucide-react` - 32 edges
+5. `AppShell()` - 29 edges
+6. `Button` - 28 edges
+7. `DispatchX (ReRoute / VORTEXA 3.0) — Project TODO` - 24 edges
+8. `solve_vrptw()` - 23 edges
+9. `DataTable()` - 21 edges
+10. `StatusBadge()` - 18 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `4.1 Fleet & Vehicle` --references--> `FleetStatusCard()`  [INFERRED]
   TODO.md → apps/web/components/fleet/fleet-status-card.tsx
 - `3.3 Application Shell` --references--> `AppShell()`  [INFERRED]
   TODO.md → apps/web/components/shell/app-shell.tsx
-- `3.2 Base Components` --references--> `Toggle()`  [INFERRED]
-  TODO.md → apps/web/components/ui/selection-controls.tsx
+- `3.2 Base Components` --references--> `Dialog()`  [INFERRED]
+  TODO.md → apps/web/components/ui/dialog.tsx
 - `3.2 Base Components` --references--> `RadioGroup()`  [INFERRED]
   TODO.md → apps/web/components/ui/selection-controls.tsx
-- `3.2 Base Components` --references--> `Popover()`  [INFERRED]
-  TODO.md → apps/web/components/ui/popover.tsx
+- `3.2 Base Components` --references--> `DataTable()`  [INFERRED]
+  TODO.md → apps/web/components/ui/data-table.tsx
 
 ## Import Cycles
 - None detected.
 
-## Communities (64 total, 18 thin omitted)
+## Communities (77 total, 16 thin omitted)
 
-### Community 0 - "react"
-Cohesion: 0.06
-Nodes (73): AuditEntry, AuditTrailPage(), DisruptionsPage(), Incident, VehicleDetailContent(), VehicleDetailPage(), FleetOverviewPage(), OrderItem (+65 more)
+### Community 0 - "elevenlabs.ts"
+Cohesion: 0.19
+Nodes (8): POST(), POST(), POST(), generateElevenLabsSpeech(), KNOWN_NETWORK_LOCATIONS, ParsedVoiceIncident, parseVoiceTranscript(), vitest
 
-### Community 1 - "next"
-Cohesion: 0.05
-Nodes (32): LoginRequestSchema, POST(), POST(), GET(), DriverRecord, DRIVERS_STORE, recordAuditEvent(), hashPassword() (+24 more)
+### Community 1 - "session.ts"
+Cohesion: 0.08
+Nodes (30): LoginRequestSchema, POST(), POST(), GET(), recordAuditEvent(), RecordAuditEventParams, hashPassword(), verifyPassword() (+22 more)
 
 ### Community 2 - "schemas.ts"
 Cohesion: 0.04
 Nodes (47): BrokenReasonCode, BrokenReasonCodeSchema, ComparisonClass, ComparisonClassSchema, Coordinates, CoordinatesSchema, CreateOrder, CreateOrderSchema (+39 more)
 
 ### Community 3 - "web/package.json"
-Cohesion: 0.05
-Nodes (41): eslintConfig, dependencies, bcryptjs, @dispatchx/contracts, @dispatchx/database, lucide-react, next, react (+33 more)
+Cohesion: 0.11
+Nodes (17): typescript, name, private, version, clsx, @dispatchx/contracts, @dispatchx/database, react-dom (+9 more)
 
 ### Community 4 - "schema.ts"
 Cohesion: 0.06
 Nodes (33): comparisonClassEnum, deliveryStatusEnum, incidentStatusEnum, incidentTypeEnum, jobStatusEnum, memberRoleEnum, notificationStatusEnum, organizations (+25 more)
 
-### Community 5 - "header.tsx"
-Cohesion: 0.10
-Nodes (20): inter, jetbrainsMono, metadata, RootLayout(), Header(), HeaderProps, Theme, ThemeContext (+12 more)
+### Community 5 - "layout.tsx"
+Cohesion: 0.12
+Nodes (16): jetbrainsMono, metadata, plusJakartaSans, RootLayout(), Theme, ThemeContext, ThemeContextType, ThemeProvider() (+8 more)
 
 ### Community 6 - "package.json"
 Cohesion: 0.10
 Nodes (20): description, devDependencies, prettier, typescript, vitest, engines, node, npm (+12 more)
 
 ### Community 7 - "plan-parser.ts"
-Cohesion: 0.17
-Nodes (12): CreateOrderSchema, inMemoryOrders, OrderRecord, POST(), FLEET_MAX_VOLUME_M3, FLEET_MAX_WEIGHT_KG, FORMULA_INJECTION_CHARS, hasFormulaInjection() (+4 more)
+Cohesion: 0.16
+Nodes (15): CreateOrderSchema, inMemoryOrders, OrderRecord, POST(), FLEET_MAX_VOLUME_M3, FLEET_MAX_WEIGHT_KG, FORMULA_INJECTION_CHARS, hasFormulaInjection() (+7 more)
 
 ### Community 8 - "database/package.json"
-Cohesion: 0.10
-Nodes (18): dependencies, drizzle-orm, postgres, devDependencies, drizzle-kit, typescript, typescript, main (+10 more)
+Cohesion: 0.13
+Nodes (13): dependencies, drizzle-orm, postgres, devDependencies, drizzle-kit, typescript, typescript, main (+5 more)
 
 ### Community 9 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
-### Community 10 - "audit-logger.ts"
-Cohesion: 0.18
-Nodes (3): RecordAuditEventParams, db, sql
+### Community 10 - "drizzle-orm"
+Cohesion: 0.40
+Nodes (4): postgres_1, postgres_js_1, schema, drizzle-orm
 
 ### Community 11 - "schemas.d.ts"
 Cohesion: 0.08
@@ -172,41 +185,41 @@ Nodes (7): 1. Database (Free Serverless PostgreSQL + PostGIS), 2. Backend Engine
 Cohesion: 0.40
 Nodes (6): Design System & UI Tokens, Control Room Dashboard Cockpit, Product Requirements Document (PRD), Excel & CSV Plan Ingestion Engine, Technical Requirements Document (TRD), Valhalla Routing & Distance Matrix
 
-### Community 17 - "selection-controls.tsx"
-Cohesion: 0.25
-Nodes (7): Checkbox, CheckboxProps, RadioGroup(), RadioGroupProps, RadioOption, Toggle(), ToggleProps
+### Community 17 - "metrics.ts"
+Cohesion: 0.39
+Nodes (5): GET(), getTelemetrySpans(), recordSpan(), spanBuffer, TelemetrySpan
 
 ### Community 18 - "DispatchX (ReRoute / VORTEXA 3.0) — Project TODO"
 Cohesion: 0.04
 Nodes (47): 13.1 Customer Voice Updates, 13.2 Fleet Briefing, 13.3 Communications, 19.1 Unit Tests, 19.2 Integration Tests, 19.3 E2E Tests (Playwright), 19.4 Performance Benchmarks, 3.1 Design Tokens (+39 more)
 
-### Community 19 - "models.py"
-Cohesion: 0.10
-Nodes (16): health_check(), optimize(), MetricEstimates, ObjectiveWeights, OptimizationRequest, OptimizationResponse, OrderInput, PriorityEnum (+8 more)
+### Community 19 - "solver.py"
+Cohesion: 0.05
+Nodes (28): test_full_pipeline(), test_india_pipeline(), haversine_km(), health_check(), optimize(), DepotInput, MetricEstimates, ObjectiveWeights (+20 more)
 
-### Community 20 - "skeleton.tsx"
-Cohesion: 0.67
-Nodes (3): Skeleton(), SkeletonProps, TableSkeletonRows()
+### Community 20 - "new/page.tsx"
+Cohesion: 0.16
+Nodes (18): buildMapData(), PlanDetailContent(), PlanDetailPage(), FleetMap(), FleetMapProps, GeoMarker, GeoRoute, MapMarker (+10 more)
 
 ### Community 21 - "mock-data.ts"
-Cohesion: 0.07
-Nodes (31): POST(), POST(), planLockVersions, jobQueue, POST(), POST(), POST(), Disruption (+23 more)
+Cohesion: 0.20
+Nodes (10): POST(), planLockVersions, Disruption, mockDisruptions, mockOrders, mockPlans, mockVehicles, Order (+2 more)
 
 ### Community 24 - "⚡ DispatchX (VORTEXA 3.0 / ReRoute)"
 Cohesion: 0.17
 Nodes (11): Autonomous, Human-in-the-Loop Dynamic Logistics Dispatch & Disruption Recovery, ⚡ DispatchX (VORTEXA 3.0 / ReRoute), 📌 Executive Summary, 🏃 Getting Started, Installation & Development Run, 🚀 Key Web Application Pages, 📄 License, Prerequisites (+3 more)
 
-### Community 25 - "fleet-map.tsx"
-Cohesion: 0.29
-Nodes (5): DEFAULT_MARKERS, DEFAULT_ROUTES, FleetMapProps, MapMarker, RouteLine
+### Community 25 - "react"
+Cohesion: 0.14
+Nodes (15): AuditEntry, AppShellProps, ConnectivityBanner(), Header(), HeaderProps, NAV_ITEMS, NavItem, Sidebar() (+7 more)
 
 ### Community 26 - "D. Mermaid Flowcharts"
 Cohesion: 0.17
 Nodes (12): D1. Authentication and Onboarding, D2. Primary Operational Workflow, D3. Incident Lifecycle State Machine, D4. Optimization Job State Machine, D4b. Proposal, Approval, Application, and Notification State Machines, D4c. Per-Edge Guards and Invalid Transitions (D4, D4b, notification machine), D5. Exception and Network Recovery, D6. State Synchronization (+4 more)
 
-### Community 27 - "valhalla.ts"
-Cohesion: 0.38
-Nodes (5): DEMO_FALLBACK_MATRIX, fetchTravelTimeMatrix(), LatLng, MatrixResponse, RouteGeometry
+### Community 27 - "lucide-react"
+Cohesion: 0.14
+Nodes (18): FleetOverviewPage(), OrderItem, FleetStatusCard(), FleetVehicle, Input, InputProps, SearchInput(), SearchInputProps (+10 more)
 
 ### Community 28 - "E. Screen-by-Screen Interaction Matrix"
 Cohesion: 0.20
@@ -225,16 +238,16 @@ Cohesion: 0.22
 Nodes (9): A.1 Purpose and Audience, A.2 Scope and Non-Goals, A.3 Terminology and Domain Entities, A.4 Lifecycle Separations (normative), A.5 Existing Implementation vs Proposed Behavior, A.6 Actors and Permissions, A.7 System Boundaries and External Integrations, A.8 Core Invariants (must never be violated) (+1 more)
 
 ### Community 33 - "zod"
-Cohesion: 0.18
-Nodes (6): CreatePlanRequestSchema, demoPlans, ClientEnv, ServerEnv, zod_1, zod
+Cohesion: 0.17
+Nodes (6): PositionUpdateSchema, ClientEnv, ServerEnv, zod_1, zod_1, zod
 
 ### Community 34 - "J. Core Logistics Domain Invariants"
 Cohesion: 0.25
 Nodes (8): J.1 Completed Deliveries, J.2 Vehicle Capacity, J.3 Customer Delivery Windows, J.4 Human Approval, J.5 Dynamic Replanning and Concurrent Incidents, J.6 Voice and Notifications, J.7 Performance Target (Not a Guarantee), J. Core Logistics Domain Invariants
 
-### Community 35 - "drizzle-orm"
-Cohesion: 0.40
-Nodes (4): postgres_1, postgres_js_1, schema, drizzle-orm
+### Community 35 - "store.ts"
+Cohesion: 0.12
+Nodes (19): jobQueue, POST(), GET(), CreatePlanRequestSchema, demoPlans, POST(), createPlan(), DEFAULT_SEED_ORDERS (+11 more)
 
 ### Community 36 - "📊 DispatchX — Implementation Status & Progress Tracker"
 Cohesion: 0.40
@@ -251,6 +264,10 @@ Nodes (5): B.1 URL Tree, B.2 Common Route Attributes, B.3 Route Table, B.4 Route
 ### Community 39 - "I. Network, Retry, and Re-authentication Protocols"
 Cohesion: 0.40
 Nodes (5): I.1 Standard Behavior Table, I.2 Backoff Policy (Proposed), I.3 Ambiguous Timeout After Approve/Apply, I.4 Re-authentication Protocol, I. Network, Retry, and Re-authentication Protocols
+
+### Community 40 - "compare/page.tsx"
+Cohesion: 0.15
+Nodes (15): PlanCompareContent(), PlanComparePage(), SimulationScenario, StopItem, VehicleRouteView, Modal(), ModalProps, BASELINE_SIMULATED_TRAVEL_TIME_MATRIX_MINUTES (+7 more)
 
 ### Community 41 - "Q. Unresolved Decisions and Assumptions"
 Cohesion: 0.50
@@ -280,33 +297,89 @@ Nodes (3): Deploy on Vercel, Getting Started, Learn More
 Cohesion: 0.08
 Nodes (13): customers(), incidents(), locations(), memberships(), orders(), vehicles(), pg_core_1, 1.1 Repository & Tooling Setup (+5 more)
 
-### Community 59 - "uuid.ts"
-Cohesion: 0.24
-Nodes (5): DEMO_IDS, DEMO_LOCATIONS, generateUuidV7, RFC-9562, uuidv7()
+### Community 52 - "AppShell"
+Cohesion: 0.29
+Nodes (17): AuditTrailPage(), DisruptionsPage(), Incident, OrdersPage(), ControlRoomPage(), FleetVehicle, CreatePlanPage(), PlanItem (+9 more)
 
-### Community 60 - "metrics.ts"
-Cohesion: 0.39
-Nodes (5): GET(), getTelemetrySpans(), recordSpan(), spanBuffer, TelemetrySpan
+### Community 54 - "dependencies"
+Cohesion: 0.14
+Nodes (14): dependencies, bcryptjs, class-variance-authority, clsx, @dispatchx/contracts, @dispatchx/database, leaflet, lucide-react (+6 more)
+
+### Community 59 - "uuid.ts"
+Cohesion: 0.16
+Nodes (6): DEMO_IDS, DEMO_LOCATIONS, RFC-9562, node_crypto_1, RFC-9562, uuidv7()
+
+### Community 60 - "optimizer/client.ts"
+Cohesion: 0.31
+Nodes (8): dispatchOptimization(), haversineKm(), OptimizationPayload, OptimizationResult, OptimizeStop, OptimizeVehicle, RouteStopSolution, solveLocally()
+
+### Community 64 - "devDependencies"
+Cohesion: 0.20
+Nodes (10): devDependencies, eslint, eslint-config-next, tailwindcss, @tailwindcss/turbopack, @types/bcryptjs, @types/node, @types/react (+2 more)
+
+### Community 65 - "cn"
+Cohesion: 0.05
+Nodes (56): AlertDescription, AlertProps, AlertTitle, AlertVariant, alertVariants, iconMap, Badge(), BadgeProps (+48 more)
+
+### Community 66 - "components.json"
+Cohesion: 0.12
+Nodes (15): aliases, components, hooks, lib, ui, utils, rsc, $schema (+7 more)
+
+### Community 67 - "button.tsx"
+Cohesion: 0.22
+Nodes (7): DEFAULT_FLEET, FleetVehicleSummary, HandsFreeDisruptionModalProps, ButtonProps, ButtonSize, ButtonVariant, buttonVariants
+
+### Community 68 - "vercel.json"
+Cohesion: 0.22
+Nodes (8): entrypoint, root, rewrites, $schema, services, optimizer, web, root
+
+### Community 69 - "valhalla.ts"
+Cohesion: 0.38
+Nodes (5): DEMO_FALLBACK_MATRIX, fetchTravelTimeMatrix(), LatLng, MatrixResponse, RouteGeometry
+
+### Community 71 - "fleet/[id]/page.tsx"
+Cohesion: 0.40
+Nodes (5): StopDetail, VEHICLE_DATA_STORE, VehicleDetailContent(), VehicleDetailPage(), VehicleFleetDetail
+
+### Community 72 - "scripts"
+Cohesion: 0.40
+Nodes (5): scripts, build, db:generate, db:migrate, typecheck
+
+### Community 73 - "matrix-generator.ts"
+Cohesion: 0.40
+Nodes (5): buildTravelTimeMatrix(), GeneratedMatrix, haversineDistanceKm(), MatrixLocation, RoadClosureDelay
+
+### Community 74 - "scripts"
+Cohesion: 0.40
+Nodes (5): scripts, build, dev, lint, start
+
+### Community 75 - "eslint.config.mjs"
+Cohesion: 0.50
+Nodes (3): eslintConfig, eslint, eslint-config-next
+
+### Community 77 - "src/client.ts"
+Cohesion: 0.29
+Nodes (3): db, sql, postgres
 
 ## Knowledge Gaps
-- **20 isolated node(s):** `@dispatchx/contracts`, `@dispatchx/database`, `react-dom`, `@tailwindcss/turbopack`, `@types/bcryptjs` (+15 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 557 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **21 isolated node(s):** `@dispatchx/contracts`, `@dispatchx/database`, `@types/leaflet`, `react-dom`, `@tailwindcss/turbopack` (+16 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 602 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **16 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `next` connect `next` to `react`, `zod`, `web/package.json`, `header.tsx`, `plan-parser.ts`, `audit-logger.ts`, `position/route.ts`, `mock-data.ts`, `orders/[id]/route.ts`, `metrics.ts`, `disruptions/route.ts`?**
-  _High betweenness centrality (0.329) - this node is a cross-community bridge._
-- **What connects `@dispatchx/contracts`, `@dispatchx/database`, `react-dom` to the rest of the system?**
-  _20 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `react` be split into smaller, more focused modules?**
-  _Cohesion score 0.06309454474859251 - nodes in this community are weakly interconnected._
-- **Why does `zod` connect `zod` to `next`, `schemas.ts`, `plan-parser.ts`, `schemas.d.ts`, `contracts/package.json`, `position/route.ts`, `orders/[id]/route.ts`, `env.js`, `src/env.ts`?**
-  _High betweenness centrality (0.129) - this node is a cross-community bridge._
-- **Should `next` be split into smaller, more focused modules?**
-  _Cohesion score 0.051587301587301584 - nodes in this community are weakly interconnected._
-- **Why does `drizzle-orm` connect `drizzle-orm` to `database/package.json`, `audit-logger.ts`, `schema.js`, `schema.ts`?**
-  _High betweenness centrality (0.098) - this node is a cross-community bridge._
+- **Why does `next` connect `next` to `elevenlabs.ts`, `session.ts`, `web/package.json`, `layout.tsx`, `plan-parser.ts`, `metrics.ts`, `new/page.tsx`, `mock-data.ts`, `react`, `lucide-react`, `disruptions/route.ts`, `zod`, `store.ts`, `compare/page.tsx`, `AppShell`, `orders/[id]/route.ts`, `button.tsx`, `drivers/route.ts`, `fleet/[id]/page.tsx`?**
+  _High betweenness centrality (0.287) - this node is a cross-community bridge._
+- **What connects `@dispatchx/contracts`, `@dispatchx/database`, `@types/leaflet` to the rest of the system?**
+  _21 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `session.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.08309178743961353 - nodes in this community are weakly interconnected._
+- **Why does `zod` connect `zod` to `session.ts`, `schemas.ts`, `store.ts`, `plan-parser.ts`, `schemas.d.ts`, `contracts/package.json`, `orders/[id]/route.ts`, `src/env.ts`?**
+  _High betweenness centrality (0.101) - this node is a cross-community bridge._
 - **Should `schemas.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.041666666666666664 - nodes in this community are weakly interconnected._
+- **Why does `DispatchX (ReRoute / VORTEXA 3.0) — Project TODO` connect `DispatchX (ReRoute / VORTEXA 3.0) — Project TODO` to `schema.js`?**
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
+- **Should `web/package.json` be split into smaller, more focused modules?**
+  _Cohesion score 0.1111111111111111 - nodes in this community are weakly interconnected._

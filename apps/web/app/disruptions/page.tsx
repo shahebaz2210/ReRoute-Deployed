@@ -25,10 +25,11 @@ import {
   MapPin,
   ExternalLink,
 } from "lucide-react";
+import { HandsFreeDisruptionModal } from "@/components/disruptions/hands-free-disruption-modal";
 
 export interface Incident {
   id: string;
-  incidentType: "BREAKDOWN" | "ROAD_CLOSURE" | "TRAFFIC_CONGESTION" | "CANCELLATION" | "DELAY" | "URGENT_ORDER";
+  incidentType: "BREAKDOWN" | "ROAD_CLOSURE" | "TRAFFIC_CONGESTION" | "CANCELLATION" | "DELAY";
   vehicleCode: string;
   driverName: string;
   locationName: string;
@@ -72,6 +73,7 @@ export default function DisruptionsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [isComparingReplan, setIsComparingReplan] = useState(false);
+  const [isDisruptionModalOpen, setIsDisruptionModalOpen] = useState(false);
 
   const fetchIncidents = async () => {
     setIsLoading(true);
@@ -159,6 +161,20 @@ export default function DisruptionsPage() {
     }
   };
 
+  const getScenarioForIncident = (type: Incident["incidentType"]) => {
+    switch (type) {
+      case "TRAFFIC_CONGESTION":
+        return "TRAFFIC_CONGESTION";
+      case "CANCELLATION":
+        return "CANCELLATION";
+      case "BREAKDOWN":
+        return "VEHICLE_BREAKDOWN";
+      case "ROAD_CLOSURE":
+      default:
+        return "ROAD_CLOSURE";
+    }
+  };
+
   const columns: Column<Incident>[] = [
     {
       key: "id",
@@ -221,16 +237,39 @@ export default function DisruptionsPage() {
     },
     {
       key: "actions",
-      header: "Action",
+      header: "Re-Route Actions",
       align: "right",
       render: (r) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedIncident(r)}
-        >
-          Review & Replan
-        </Button>
+        <div className="flex items-center gap-2 justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedIncident(r)}
+          >
+            Review
+          </Button>
+
+          <Link href={`/plans/PLAN-SF-2026-10-12/compare?scenario=${getScenarioForIncident(r.incidentType)}`}>
+            <Button
+              variant="primary"
+              size="sm"
+              className={
+                r.incidentType === "TRAFFIC_CONGESTION"
+                  ? "bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                  : r.incidentType === "CANCELLATION"
+                  ? "bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              }
+            >
+              <RotateCw className="h-3.5 w-3.5 mr-1" />
+              {r.incidentType === "TRAFFIC_CONGESTION"
+                ? "Re-Route (Avoid Traffic)"
+                : r.incidentType === "CANCELLATION"
+                ? "Re-Route (Skip Location)"
+                : "Re-Route (DispatchX)"}
+            </Button>
+          </Link>
+        </div>
       ),
     },
   ];
@@ -264,16 +303,15 @@ export default function DisruptionsPage() {
             >
               Refresh Incidents
             </Button>
-            <Link href="/">
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<AlertTriangle className="h-4 w-4" />}
-                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
-              >
-                Report New Disruption
-              </Button>
-            </Link>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<AlertTriangle className="h-4 w-4" />}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer"
+              onClick={() => setIsDisruptionModalOpen(true)}
+            >
+              Report New Disruption
+            </Button>
           </div>
         </div>
 
@@ -386,6 +424,16 @@ export default function DisruptionsPage() {
             </div>
           </Modal>
         )}
+
+        {/* Disruption Ingestion Cockpit Modal (Voice/Text and Structured Form) */}
+        <HandsFreeDisruptionModal
+          isOpen={isDisruptionModalOpen}
+          onClose={() => setIsDisruptionModalOpen(false)}
+          onDisruptionConfirmed={() => {
+            fetchIncidents();
+            setIsDisruptionModalOpen(false);
+          }}
+        />
       </div>
     </AppShell>
   );

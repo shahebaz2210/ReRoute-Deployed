@@ -23,7 +23,6 @@ exports.IncidentTypeSchema = zod_1.z.enum([
     "breakdown",
     "road_closure",
     "traffic_delay",
-    "urgent_order",
     "weather",
     "other",
 ]);

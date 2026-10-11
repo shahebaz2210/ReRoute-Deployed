@@ -1,30 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseDeliveryPlanBuffer } from "@/lib/ingestion/plan-parser";
+import { parseDeliveryPlanBuffer, parseVehiclesPlanBuffer } from "@/lib/ingestion/plan-parser";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    const ordersFile = (formData.get("ordersFile") || formData.get("file")) as File | null;
+    const vehiclesFile = formData.get("vehiclesFile") as File | null;
 
-    if (!file) {
+    if (!ordersFile && !vehiclesFile) {
       return NextResponse.json(
-        { error: "NO_FILE_PROVIDED", message: "Please select an Excel (.xlsx/.xls) or CSV delivery plan file." },
+        { error: "NO_FILE_PROVIDED", message: "Please select orders.csv and vehicles.csv files." },
         { status: 400 }
       );
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    let ordersResult = null;
+    let vehiclesResult = null;
 
-    const result = parseDeliveryPlanBuffer(buffer, file.name);
+    if (ordersFile) {
+      const ordersBuffer = Buffer.from(await ordersFile.arrayBuffer());
+      ordersResult = parseDeliveryPlanBuffer(ordersBuffer, ordersFile.name);
+    }
 
-    return NextResponse.json(result, {
-      status: result.success ? 200 : 422,
+    if (vehiclesFile) {
+      const vehiclesBuffer = Buffer.from(await vehiclesFile.arrayBuffer());
+      const defaultDepot = ordersResult && ordersResult.validRows.length > 0
+        ? {
+            latitude: ordersResult.validRows.reduce((s, r) => s + r.latitude, 0) / ordersResult.validRows.length,
+            longitude: ordersResult.validRows.reduce((s, r) => s + r.longitude, 0) / ordersResult.validRows.length,
+          }
+        : { latitude: 18.5018, longitude: 73.8586 };
+
+      vehiclesResult = parseVehiclesPlanBuffer(vehiclesBuffer, vehiclesFile.name, defaultDepot);
+    }
+
+    const overallSuccess = (ordersResult ? ordersResult.success : true) && (vehiclesResult ? vehiclesResult.success : true);
+
+    return NextResponse.json({
+      success: overallSuccess,
+      ordersResult,
+      vehiclesResult,
+      depotCenter: vehiclesResult?.depotCenter || {
+        id: "DEPOT-PUNE-SWARGATE",
+        latitude: 18.5018,
+        longitude: 73.8586,
+      },
+    }, {
+      status: overallSuccess ? 200 : 422,
     });
   } catch (error: unknown) {
     console.error("Plan upload failed:", error);
     return NextResponse.json(
-      { error: "SERVER_ERROR", message: "Failed to process delivery plan file." },
+      { error: "SERVER_ERROR", message: "Failed to process delivery plan files." },
       { status: 500 }
     );
   }

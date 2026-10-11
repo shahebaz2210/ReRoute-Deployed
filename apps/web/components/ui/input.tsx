@@ -2,6 +2,7 @@
 
 import React, { forwardRef, useState, useEffect } from "react";
 import { Search, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -18,13 +19,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={inputId} className="text-xs font-medium text-[var(--foreground)]">
+          <label htmlFor={inputId} className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-tight">
             {label}
           </label>
         )}
         <div className="relative flex items-center">
           {leftIcon && (
-            <span className="absolute left-3 text-[var(--muted-foreground)] pointer-events-none">
+            <span className="absolute left-3 text-neutral-400 dark:text-neutral-500 pointer-events-none flex items-center justify-center">
               {leftIcon}
             </span>
           )}
@@ -32,23 +33,25 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             aria-invalid={!!error}
-            className={`w-full rounded-lg border bg-[var(--surface-input)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-[var(--border-active)] disabled:cursor-not-allowed disabled:opacity-50 ${
-              leftIcon ? "pl-9" : ""
-            } ${rightIcon ? "pr-9" : ""} ${
-              error ? "border-[var(--destructive)] focus:ring-[var(--destructive)]" : "border-[var(--input)]"
-            } ${className}`}
+            className={cn(
+              "flex h-9.5 w-full rounded-xl border border-neutral-200/90 bg-white px-3 py-2 text-xs md:text-sm text-[#272A30] shadow-2xs transition-colors file:border-0 file:bg-transparent file:text-xs file:font-semibold placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D3139] focus-visible:border-[#2D3139] disabled:cursor-not-allowed disabled:opacity-50",
+              leftIcon && "pl-9",
+              rightIcon && "pr-9",
+              error && "border-red-500 focus-visible:ring-red-500",
+              className
+            )}
             {...props}
           />
           {rightIcon && (
-            <span className="absolute right-3 text-[var(--muted-foreground)] pointer-events-none">
+            <span className="absolute right-3 text-neutral-400 dark:text-neutral-500 pointer-events-none flex items-center justify-center">
               {rightIcon}
             </span>
           )}
         </div>
         {error ? (
-          <p className="text-xs text-[var(--destructive)] font-medium">{error}</p>
+          <p className="text-xs text-red-600 font-medium">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-[var(--muted-foreground)]">{helperText}</p>
+          <p className="text-xs text-neutral-500">{helperText}</p>
         ) : null}
       </div>
     );
@@ -94,7 +97,7 @@ export function SearchInput({ value, onChange, debounceMs = 300, placeholder = "
                 setInternalVal("");
                 onChange("");
               }}
-              className="p-1 hover:text-[var(--foreground)] cursor-pointer"
+              className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -120,7 +123,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="w-full flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={textareaId} className="text-xs font-medium text-[var(--foreground)]">
+          <label htmlFor={textareaId} className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-tight">
             {label}
           </label>
         )}
@@ -129,15 +132,17 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={textareaId}
           rows={rows}
           aria-invalid={!!error}
-          className={`w-full rounded-lg border bg-[var(--surface-input)] p-3 text-sm text-[var(--foreground)] transition-colors placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-[var(--border-active)] disabled:cursor-not-allowed disabled:opacity-50 resize-y ${
-            error ? "border-[var(--destructive)] focus:ring-[var(--destructive)]" : "border-[var(--input)]"
-          } ${className}`}
+          className={cn(
+            "flex min-h-[80px] w-full rounded-xl border border-neutral-200/90 bg-white p-3 text-xs md:text-sm text-[#272A30] shadow-2xs transition-colors placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D3139] focus-visible:border-[#2D3139] disabled:cursor-not-allowed disabled:opacity-50 resize-y",
+            error && "border-red-500 focus-visible:ring-red-500",
+            className
+          )}
           {...props}
         />
         {error ? (
-          <p className="text-xs text-[var(--destructive)] font-medium">{error}</p>
+          <p className="text-xs text-red-600 font-medium">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-[var(--muted-foreground)]">{helperText}</p>
+          <p className="text-xs text-neutral-500">{helperText}</p>
         ) : null}
       </div>
     );
