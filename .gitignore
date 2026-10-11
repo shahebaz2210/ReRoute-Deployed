@@ -247,3 +247,5 @@ Thumbs.db
 # Graphify temporary caches (keep final graphify-out/ outputs)
 graphify-out/.graphify_*
 graphify-out/.needs_update
+.vercel
+.env*
