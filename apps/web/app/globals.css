@@ -1,0 +1,304 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+
+  /* Canvas & Surfaces (Light) */
+  --background: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-secondary: #F1F5F9;
+  --surface-elevated: #FFFFFF;
+  --card: #FFFFFF;
+  --popover: #FFFFFF;
+  --surface-input: #FFFFFF;
+  --surface-hover: #EEF2F7;
+
+  /* Typography */
+  --foreground: #0F172A;
+  --text-secondary: #475569;
+  --muted-foreground: #526179;
+  --text-disabled: #94A3B8;
+  --text-inverse: #FFFFFF;
+  --text-link: #1D4ED8;
+
+  /* Brand Accents */
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  --primary-hover: #1D4ED8;
+  --primary-active: #1E40AF;
+  --secondary: #DBEAFE;
+  --secondary-foreground: #1E3A8A;
+  --accent: #0F766E;
+  --accent-foreground: #FFFFFF;
+  --ring: #2563EB;
+
+  /* Semantic Status Fills & Subtles */
+  --success: #15803D;
+  --success-foreground: #FFFFFF;
+  --success-subtle: #DCFCE7;
+  --success-subtle-foreground: #166534;
+  --success-border: #86EFAC;
+
+  --warning: #B45309;
+  --warning-foreground: #FFFFFF;
+  --warning-subtle: #FEF3C7;
+  --warning-subtle-foreground: #92400E;
+  --warning-border: #FCD34D;
+
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --destructive-subtle: #FEE2E2;
+  --destructive-subtle-foreground: #991B1B;
+  --destructive-border: #FCA5A5;
+
+  --info: #0369A1;
+  --info-foreground: #FFFFFF;
+  --info-subtle: #E0F2FE;
+  --info-subtle-foreground: #075985;
+  --info-border: #7DD3FC;
+
+  --pending: #475569;
+  --pending-foreground: #FFFFFF;
+  --pending-subtle: #F1F5F9;
+  --pending-subtle-foreground: #475569;
+  --pending-border: #CBD5E1;
+
+  --neutral: #64748B;
+  --neutral-foreground: #FFFFFF;
+  --neutral-subtle: #E2E8F0;
+  --neutral-subtle-foreground: #334155;
+  --neutral-border: #CBD5E1;
+
+  /* Status Specific Badges (Design §5) */
+  --status-delivered: #166534;
+  --status-delivered-bg: #DCFCE7;
+  --status-delivered-border: #86EFAC;
+
+  --status-pending: #475569;
+  --status-pending-bg: #F1F5F9;
+  --status-pending-border: #CBD5E1;
+
+  --status-failed: #991B1B;
+  --status-failed-bg: #FEE2E2;
+  --status-failed-border: #FCA5A5;
+
+  --status-active-vehicle: #1D4ED8;
+  --status-active-vehicle-bg: #DBEAFE;
+  --status-active-vehicle-border: #93C5FD;
+
+  --status-delayed-route: #92400E;
+  --status-delayed-route-bg: #FEF3C7;
+  --status-delayed-route-border: #FCD34D;
+
+  --status-disruption: #991B1B;
+  --status-disruption-bg: #FEE2E2;
+  --status-disruption-border: #FCA5A5;
+
+  --status-awaiting-approval: #6D28D9;
+  --status-awaiting-approval-bg: #EDE9FE;
+  --status-awaiting-approval-border: #DDD6FE;
+
+  --status-approved-replan: #0F766E;
+  --status-approved-replan-bg: #CCFBF1;
+  --status-approved-replan-border: #5EEAD4;
+
+  --status-kept: #166534;
+  --status-kept-bg: #DCFCE7;
+  --status-kept-border: #86EFAC;
+
+  --status-moved: #1D4ED8;
+  --status-moved-bg: #DBEAFE;
+  --status-moved-border: #93C5FD;
+
+  --status-broken: #C2410C;
+  --status-broken-bg: #FFEDD5;
+  --status-broken-border: #FDBA74;
+
+  --status-unassigned: #C2410C;
+  --status-unassigned-bg: #FFEDD5;
+  --status-unassigned-border: #FDBA74;
+
+  /* Borders & Dividers */
+  --border-subtle: #E2E8F0;
+  --border: #CBD5E1;
+  --border-strong: #94A3B8;
+  --input: #7A8AA0;
+  --border-active: #2563EB;
+  --divider: #E8EDF3;
+
+  /* Map Specific */
+  --map-canvas: #EAF0F6;
+  --map-edge: #B6C2D2;
+  --map-node: #64748B;
+
+  /* Overlay */
+  --overlay: rgba(15, 23, 42, 0.5);
+
+  /* Shadows */
+  --shadow-0: none;
+  --shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.06), inset 0 1px 0 0 rgb(255 255 255 / 0.6);
+  --shadow-2: 0 2px 4px -1px rgb(15 23 42 / 0.08), 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --shadow-3: 0 8px 16px -4px rgb(15 23 42 / 0.12), 0 2px 4px -2px rgb(15 23 42 / 0.08);
+  --shadow-popover: 0 8px 24px -6px rgb(15 23 42 / 0.16), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --shadow-modal: 0 20px 40px -12px rgb(15 23 42 / 0.24), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --shadow-map-control: 0 2px 6px 0 rgb(15 23 42 / 0.18), 0 0 0 1px rgb(15 23 42 / 0.06);
+
+  /* Layout */
+  --sidebar-width: 15rem;            /* 240px */
+  --sidebar-width-collapsed: 4rem;   /* 64px */
+  --header-height: 3.5rem;           /* 56px */
+
+  /* Radius */
+  --radius-sm: 0.25rem;              /* 4px */
+  --radius-md: 0.375rem;             /* 6px */
+  --radius-lg: 0.5rem;               /* 8px */
+  --radius-xl: 0.75rem;              /* 12px */
+  --radius-full: 9999px;
+}
+
+.dark, [data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Canvas & Surfaces (Dark - Slate Precision) */
+  --background: #0B1120;
+  --surface: #0F172A;
+  --surface-secondary: #151F33;
+  --surface-elevated: #1A2540;
+  --card: #121B31;
+  --popover: #1A2540;
+  --surface-input: #0B1426;
+  --surface-hover: #1E293B;
+
+  /* Typography */
+  --foreground: #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --muted-foreground: #94A3B8;
+  --text-disabled: #64748B;
+  --text-inverse: #0B1120;
+  --text-link: #93C5FD;
+
+  /* Brand Accents */
+  --primary: #3B82F6;
+  --primary-foreground: #0B1120;
+  --primary-hover: #60A5FA;
+  --primary-active: #93C5FD;
+  --secondary: #1E293B;
+  --secondary-foreground: #93C5FD;
+  --accent: #14B8A6;
+  --accent-foreground: #0B1120;
+  --ring: #3B82F6;
+
+  /* Semantic Status Fills & Subtles */
+  --success: #22C55E;
+  --success-foreground: #0B1120;
+  --success-subtle: #052E16;
+  --success-subtle-foreground: #86EFAC;
+  --success-border: #166534;
+
+  --warning: #F59E0B;
+  --warning-foreground: #0B1120;
+  --warning-subtle: #451A03;
+  --warning-subtle-foreground: #FDE68A;
+  --warning-border: #92400E;
+
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --destructive-subtle: #450A0A;
+  --destructive-subtle-foreground: #FCA5A5;
+  --destructive-border: #991B1B;
+
+  --info: #0EA5E9;
+  --info-foreground: #0B1120;
+  --info-subtle: #082F49;
+  --info-subtle-foreground: #BAE6FD;
+  --info-border: #075985;
+
+  --pending: #94A3B8;
+  --pending-foreground: #0B1120;
+  --pending-subtle: #1E293B;
+  --pending-subtle-foreground: #CBD5E1;
+  --pending-border: #334155;
+
+  --neutral: #94A3B8;
+  --neutral-foreground: #0B1120;
+  --neutral-subtle: #1E293B;
+  --neutral-subtle-foreground: #CBD5E1;
+  --neutral-border: #334155;
+
+  /* Status Specific Badges (Dark Mode) */
+  --status-delivered: #86EFAC;
+  --status-delivered-bg: #052E16;
+  --status-delivered-border: #166534;
+
+  --status-pending: #CBD5E1;
+  --status-pending-bg: #1E293B;
+  --status-pending-border: #334155;
+
+  --status-failed: #FCA5A5;
+  --status-failed-bg: #450A0A;
+  --status-failed-border: #991B1B;
+
+  --status-active-vehicle: #93C5FD;
+  --status-active-vehicle-bg: #1E293B;
+  --status-active-vehicle-border: #1E40AF;
+
+  --status-delayed-route: #FDE68A;
+  --status-delayed-route-bg: #451A03;
+  --status-delayed-route-border: #92400E;
+
+  --status-disruption: #FCA5A5;
+  --status-disruption-bg: #450A0A;
+  --status-disruption-border: #991B1B;
+
+  --status-awaiting-approval: #C4B5FD;
+  --status-awaiting-approval-bg: #2E1065;
+  --status-awaiting-approval-border: #5B21B6;
+
+  --status-approved-replan: #5EEAD4;
+  --status-approved-replan-bg: #042F2E;
+  --status-approved-replan-border: #115E59;
+
+  --status-kept: #86EFAC;
+  --status-kept-bg: #052E16;
+  --status-kept-border: #166534;
+
+  --status-moved: #93C5FD;
+  --status-moved-bg: #1E293B;
+  --status-moved-border: #1E40AF;
+
+  --status-broken: #FDBA74;
+  --status-broken-bg: #431407;
+  --status-broken-border: #9A3412;
+
+  --status-unassigned: #FDBA74;
+  --status-unassigned-bg: #431407;
+  --status-unassigned-border: #9A3412;
+
+  /* Borders & Dividers */
+  --border-subtle: #1E293B;
+  --border: #334155;
+  --border-strong: #475569;
+  --input: #475569;
+  --border-active: #3B82F6;
+  --divider: #1E293B;
+
+  /* Map Specific */
+  --map-canvas: #0B1120;
+  --map-edge: #334155;
+  --map-node: #64748B;
+
+  /* Overlay */
+  --overlay: rgba(0, 0, 0, 0.75);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, kbd, samp, pre {
+  font-family: var(--font-mono), monospace;
+}

@@ -1,0 +1,137 @@
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL 16 + PostGIS Spatial Database
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: dispatchx-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dispatch
+      POSTGRES_PASSWORD: dispatch
+      POSTGRES_DB: dispatchx
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispatch -d dispatchx"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dispatchx-network
+
+  # ----------------------------------------------------------------------------
+  # Python 3.12 FastAPI + Google OR-Tools Optimization Worker
+  # ----------------------------------------------------------------------------
+  optimizer:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.optimizer
+    container_name: dispatchx-optimizer
+    restart: unless-stopped
+    environment:
+      PORT: 8000
+      VALHALLA_BASE_URL: http://valhalla:8002
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - dispatchx-network
+
+  # ----------------------------------------------------------------------------
+  # Next.js 15 App Router Web Cockpit
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+    container_name: dispatchx-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://dispatch:dispatch@postgres:5432/dispatchx
+      OPTIMIZER_BASE_URL: http://optimizer:8000
+      VALHALLA_BASE_URL: http://valhalla:8002
+      AUTH_SECRET: super-secret-random-32-character-key-here
+      NEXT_PUBLIC_APP_NAME: DispatchX
+      NEXT_PUBLIC_MAP_STYLE_URL: https://demotiles.maplibre.org/style.json
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      optimizer:
+        condition: service_started
+    networks:
+      - dispatchx-network
+
+  # ----------------------------------------------------------------------------
+  # Self-Hosted Valhalla Routing Engine (OSM Road Travel Matrices)
+  # ----------------------------------------------------------------------------
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: dispatchx-valhalla
+    restart: unless-stopped
+    environment:
+      build_admins: "false"
+      build_time_zones: "false"
+      server_threads: 2
+    ports:
+      - "8002:8002"
+    volumes:
+      - valhalla_data:/custom_files
+    networks:
+      - dispatchx-network
+
+  # ----------------------------------------------------------------------------
+  # Optional Photon Geocoder (OpenStreetMap Address Search)
+  # ----------------------------------------------------------------------------
+  photon:
+    image: komoot/photon:latest
+    container_name: dispatchx-photon
+    restart: unless-stopped
+    ports:
+      - "2322:2322"
+    volumes:
+      - photon_data:/photon/photon_data
+    networks:
+      - dispatchx-network
+
+  # ----------------------------------------------------------------------------
+  # Optional MinIO (S3-Compatible Object Storage for Audio / Briefings)
+  # ----------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: dispatchx-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - dispatchx-network
+
+volumes:
+  postgres_data:
+  valhalla_data:
+  photon_data:
+  minio_data:
+
+networks:
+  dispatchx-network:
+    driver: bridge
