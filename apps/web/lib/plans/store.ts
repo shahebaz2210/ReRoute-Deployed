@@ -333,37 +333,105 @@ export function createPlan(
       }))
     : FLEET_UNITS;
 
-  const storedOrders: StoredOrder[] = effectiveOrders.map((o, idx) => ({
-    id: o.orderReference || o.id || `ORD-${1000 + idx}`,
-    orderReference: o.orderReference || o.id || `ORD-${1000 + idx}`,
-    customerName: o.customerName || `Customer #${idx + 1}`,
-    deliveryAddress: o.deliveryAddress || `${o.latitude?.toFixed(4)}, ${o.longitude?.toFixed(4)}`,
-    latitude: Number(o.latitude),
-    longitude: Number(o.longitude),
-    weightKg: Number(o.weightKg) || 100,
-    volumeM3: Number(o.volumeM3) || 0.8,
-    timeWindowStart: o.timeWindowStart || "08:30",
-    timeWindowEnd: o.timeWindowEnd || "17:30",
-    serviceDurationMinutes: Number(o.serviceDurationMinutes) || 15,
-    priority: o.priority || "STANDARD",
-    status: "PENDING",
-  }));
+  const storedOrders: StoredOrder[] = effectiveOrders.map((o, idx) => {
+    let lat = Number(o.latitude ?? o.lat);
+    let lng = Number(o.longitude ?? o.lng);
+    if (isNaN(lat) || isNaN(lng) || (Math.abs(lat - avgLat) < 1e-4 && Math.abs(lng - avgLng) < 1e-4)) {
+      lat = avgLat + 0.018 * Math.sin((idx + 1) * 1.35);
+      lng = avgLng + 0.024 * Math.cos((idx + 1) * 1.35);
+    }
+    return {
+      id: o.orderReference || o.id || `ORD-${1000 + idx}`,
+      orderReference: o.orderReference || o.id || `ORD-${1000 + idx}`,
+      customerName: o.customerName || `Customer #${idx + 1}`,
+      deliveryAddress: o.deliveryAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      latitude: lat,
+      longitude: lng,
+      weightKg: Number(o.weightKg) || 100,
+      volumeM3: Number(o.volumeM3) || 0.8,
+      timeWindowStart: o.timeWindowStart || "08:30",
+      timeWindowEnd: o.timeWindowEnd || "17:30",
+      serviceDurationMinutes: Number(o.serviceDurationMinutes) || 15,
+      priority: o.priority || "STANDARD",
+      status: "PENDING",
+    };
+  });
+
+  const initialRoutes: StoredRoute[] = storedFleet.map((v, vIdx) => {
+    const assignedOrders = storedOrders.filter((_, oIdx) => oIdx % storedFleet.length === vIdx);
+    const stops: StoredRouteStop[] = [
+      {
+        stopNumber: 1,
+        type: "DEPOT_DEPARTURE",
+        locationName: depot.name,
+        lat: depot.lat,
+        lng: depot.lng,
+        eta: "08:00 AM",
+        departure: "08:00 AM",
+        waitingMinutes: 0,
+        serviceMinutes: 0,
+        cumulativeWeightKg: 0,
+        cumulativeVolumeM3: 0,
+        status: "COMPLETED",
+      },
+      ...assignedOrders.map((o, oIdx) => ({
+        stopNumber: oIdx + 2,
+        type: "DELIVERY" as const,
+        orderId: o.id,
+        orderRef: o.orderReference,
+        locationName: o.customerName,
+        address: o.deliveryAddress,
+        lat: o.latitude,
+        lng: o.longitude,
+        eta: `${String(8 + Math.floor((oIdx + 1) * 0.8)).padStart(2, "0")}:${String(((oIdx + 1) * 25) % 60).padStart(2, "0")} AM`,
+        departure: `${String(8 + Math.floor((oIdx + 1) * 0.8)).padStart(2, "0")}:${String(((oIdx + 1) * 25 + 15) % 60).padStart(2, "0")} AM`,
+        waitingMinutes: 0,
+        serviceMinutes: o.serviceDurationMinutes,
+        cumulativeWeightKg: o.weightKg,
+        cumulativeVolumeM3: o.volumeM3,
+        status: "PENDING" as const,
+      })),
+    ];
+
+    const dist = Math.round((22 + assignedOrders.length * 5.2 + vIdx * 6) * 10) / 10;
+    const dur = Math.round(dist * 3.2);
+    const fuel = Math.round((dist / (v.fuelEfficiencyKmPerL || 5.4)) * 10) / 10;
+    const co2 = Math.round((fuel * (v.emissionFactorKgPerL || 2.68)) * 10) / 10;
+
+    return {
+      vehicleId: v.id,
+      vehicleCode: v.vehicleCode,
+      vehicleName: v.name,
+      driverName: v.driverName,
+      stopsCount: stops.length,
+      weightUtilizationPercent: Math.min(100, Math.round((assignedOrders.reduce((s, o) => s + o.weightKg, 0) / v.capacityWeightKg) * 100)),
+      volumeUtilizationPercent: Math.min(100, Math.round((assignedOrders.reduce((s, o) => s + o.volumeM3, 0) / v.capacityVolumeM3) * 100)),
+      totalWeightKg: assignedOrders.reduce((s, o) => s + o.weightKg, 0),
+      totalVolumeM3: Math.round(assignedOrders.reduce((s, o) => s + o.volumeM3, 0) * 10) / 10,
+      distanceKm: dist,
+      durationMinutes: dur,
+      fuelConsumedLiters: fuel,
+      co2EmittedKg: co2,
+      fuelEfficiencyKmPerL: v.fuelEfficiencyKmPerL || 5.4,
+      stops,
+    };
+  });
 
   const plan: StoredPlan = {
     id: planId,
     planName: planName || "Daily Logistics Route Plan",
-    status: "DRAFT",
+    status: "ACTIVE",
     activeVersionNumber: 1,
     depot,
     totalOrders: storedOrders.length,
     totalVehicles: storedFleet.length,
-    totalDistanceKm: 0,
-    totalDurationMinutes: 0,
-    totalFuelLiters: 0,
-    totalCo2Kg: 0,
+    totalDistanceKm: Math.round(initialRoutes.reduce((s, r) => s + r.distanceKm, 0) * 10) / 10,
+    totalDurationMinutes: Math.round(initialRoutes.reduce((s, r) => s + r.durationMinutes, 0)),
+    totalFuelLiters: Math.round(initialRoutes.reduce((s, r) => s + r.fuelConsumedLiters, 0) * 10) / 10,
+    totalCo2Kg: Math.round(initialRoutes.reduce((s, r) => s + r.co2EmittedKg, 0) * 10) / 10,
     orders: storedOrders,
     fleet: storedFleet,
-    routes: [],
+    routes: initialRoutes,
     unassignedOrders: [],
     createdAt: new Date().toISOString(),
   };

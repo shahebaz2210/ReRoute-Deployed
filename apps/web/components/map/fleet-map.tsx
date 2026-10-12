@@ -214,32 +214,118 @@ export function FleetMap({
 
       const boundsLatLngs: L.LatLngExpression[] = [];
 
-    // 1. Draw Routes (Road Polylines on India map)
-    effectiveGeoRoutes.forEach((route) => {
-      if (route.coordinates && route.coordinates.length > 1) {
-        const polyline = L.polyline(route.coordinates, {
-          color: route.color || "#2563EB",
-          weight: 4.5,
-          opacity: 0.85,
-          lineJoin: "round",
-          lineCap: "round",
+// In-memory cache for OSRM turn-by-turn road geometry coordinates
+const roadGeometryCache = new Map<string, [number, number][]>();
+
+async function fetchRoadGeometry(
+  waypoints: [number, number][]
+): Promise<[number, number][]> {
+  if (!waypoints || waypoints.length < 2) return waypoints;
+
+  // Filter consecutive duplicates
+  const clean: [number, number][] = [];
+  waypoints.forEach((pt) => {
+    const last = clean[clean.length - 1];
+    if (!last || Math.abs(last[0] - pt[0]) > 1e-5 || Math.abs(last[1] - pt[1]) > 1e-5) {
+      clean.push(pt);
+    }
+  });
+
+  if (clean.length < 2) return waypoints;
+
+  const cacheKey = clean.map((c) => `${c[0].toFixed(4)},${c[1].toFixed(4)}`).join(";");
+  if (roadGeometryCache.has(cacheKey)) {
+    return roadGeometryCache.get(cacheKey)!;
+  }
+
+  // OSRM coordinates format: lon,lat;lon,lat;...
+  const osrmCoords = clean.map((c) => `${c[1].toFixed(6)},${c[0].toFixed(6)}`).join(";");
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${osrmCoords}?overview=full&geometries=geojson`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.code === "Ok" && data.routes && data.routes[0]?.geometry?.coordinates) {
+        // GeoJSON [lon, lat] -> Leaflet [lat, lon]
+        const roadPoints: [number, number][] = data.routes[0].geometry.coordinates.map(
+          (c: [number, number]) => [c[1], c[0]]
+        );
+        if (roadPoints.length > 1) {
+          roadGeometryCache.set(cacheKey, roadPoints);
+          return roadPoints;
+        }
+      }
+    }
+  } catch {
+    // Fall back to clean waypoints
+  }
+
+  return clean;
+}
+
+      // 1. Draw Routes (Road Polylines on India map)
+      effectiveGeoRoutes.forEach((route) => {
+        // Deduplicate coordinates
+        const cleanCoords: [number, number][] = [];
+        (route.coordinates || []).forEach((c) => {
+          const last = cleanCoords[cleanCoords.length - 1];
+          if (!last || Math.abs(last[0] - c[0]) > 1e-5 || Math.abs(last[1] - c[1]) > 1e-5) {
+            cleanCoords.push(c);
+          }
         });
 
-        polyline.bindPopup(`
-          <div style="font-family:sans-serif; padding:4px;">
-            <div style="font-weight:bold; font-size:12px; color:#2D3139;">${route.vehicleCode || route.id} Active Route</div>
-            <div style="font-size:11px; color:#6B7280; margin-top:2px;">
-              ${route.driverName ? `Driver: ${route.driverName}<br/>` : ""}
-              ${route.distanceKm ? `Distance: ${route.distanceKm} km<br/>` : ""}
-              ${route.stopsCount ? `Stops: ${route.stopsCount}` : ""}
-            </div>
-          </div>
-        `);
+        if (cleanCoords.length > 1) {
+          // Outer glow/casing polyline (crisp white backing over tiles)
+          const casing = L.polyline(cleanCoords, {
+            color: "#FFFFFF",
+            weight: 7,
+            opacity: 0.7,
+            lineJoin: "round",
+            lineCap: "round",
+          });
 
-        layersGroup.addLayer(polyline);
-        route.coordinates.forEach((c) => boundsLatLngs.push(c));
-      }
-    });
+          // Main colored route line
+          const polyline = L.polyline(cleanCoords, {
+            color: route.color || "#2563EB",
+            weight: 4.5,
+            opacity: 0.95,
+            lineJoin: "round",
+            lineCap: "round",
+          });
+
+          const popupContent = `
+            <div style="font-family:sans-serif; padding:4px;">
+              <div style="font-weight:bold; font-size:12px; color:#2D3139;">${route.vehicleCode || route.id} Active Route</div>
+              <div style="font-size:11px; color:#6B7280; margin-top:2px;">
+                ${route.driverName ? `Driver: ${route.driverName}<br/>` : ""}
+                ${route.distanceKm ? `Distance: ${route.distanceKm} km<br/>` : ""}
+                ${route.stopsCount ? `Stops: ${route.stopsCount}` : ""}
+              </div>
+            </div>
+          `;
+          polyline.bindPopup(popupContent);
+
+          layersGroup.addLayer(casing);
+          layersGroup.addLayer(polyline);
+          cleanCoords.forEach((c) => boundsLatLngs.push(c));
+
+          // Asynchronously fetch OSRM real road street-level geometry
+          fetchRoadGeometry(cleanCoords).then((roadCoords) => {
+            if (!isCancelled && roadCoords && roadCoords.length > 1) {
+              polyline.setLatLngs(roadCoords);
+              casing.setLatLngs(roadCoords);
+            }
+          });
+        }
+      });
 
     // 2. Draw Markers (Depot, Stops, Vehicles on India map)
     effectiveGeoMarkers.forEach((m) => {
@@ -308,6 +394,12 @@ export function FleetMap({
         console.warn("Could not fit bounds:", err);
       }
     }
+
+    setTimeout(() => {
+      if (!isCancelled && mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 200);
   }
 
   setupMap();
