@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import L from "leaflet";
+import type L from "leaflet";
 import {
   Truck,
   MapPin,
@@ -166,46 +166,53 @@ export function FleetMap({
 
   // Initialize Leaflet Map instance
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (typeof window === "undefined" || !mapContainerRef.current) return;
 
-    if (!mapInstanceRef.current) {
-      // Determine initial center
-      let initialLat = centerLat;
-      let initialLng = centerLng;
+    let isCancelled = false;
 
-      if (effectiveGeoMarkers.length > 0) {
-        initialLat = effectiveGeoMarkers[0].lat;
-        initialLng = effectiveGeoMarkers[0].lng;
+    async function setupMap() {
+      const leafletModule = await import("leaflet");
+      const L = (leafletModule.default || leafletModule) as typeof import("leaflet");
+      if (isCancelled || !mapContainerRef.current) return;
+
+      if (!mapInstanceRef.current) {
+        // Determine initial center
+        let initialLat = centerLat;
+        let initialLng = centerLng;
+
+        if (effectiveGeoMarkers.length > 0) {
+          initialLat = effectiveGeoMarkers[0].lat;
+          initialLng = effectiveGeoMarkers[0].lng;
+        }
+
+        const map = L.map(mapContainerRef.current, {
+          center: [initialLat, initialLng],
+          zoom: zoom,
+          zoomControl: false,
+          attributionControl: true,
+        });
+
+        L.control.zoom({ position: "bottomleft" }).addTo(map);
+
+        // Real OpenStreetMap Tile Layer (India & Worldwide Road Map)
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(map);
+
+        const layersGroup = L.layerGroup().addTo(map);
+        layersGroupRef.current = layersGroup;
+        mapInstanceRef.current = map;
       }
 
-      const map = L.map(mapContainerRef.current, {
-        center: [initialLat, initialLng],
-        zoom: zoom,
-        zoomControl: false,
-        attributionControl: true,
-      });
+      const map = mapInstanceRef.current;
+      const layersGroup = layersGroupRef.current;
+      if (!map || !layersGroup) return;
 
-      L.control.zoom({ position: "bottomleft" }).addTo(map);
+      // Clear previous layers
+      layersGroup.clearLayers();
 
-      // Real OpenStreetMap Tile Layer (India & Worldwide Road Map)
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
-
-      const layersGroup = L.layerGroup().addTo(map);
-      layersGroupRef.current = layersGroup;
-      mapInstanceRef.current = map;
-    }
-
-    const map = mapInstanceRef.current;
-    const layersGroup = layersGroupRef.current;
-    if (!map || !layersGroup) return;
-
-    // Clear previous layers
-    layersGroup.clearLayers();
-
-    const boundsLatLngs: L.LatLngExpression[] = [];
+      const boundsLatLngs: L.LatLngExpression[] = [];
 
     // 1. Draw Routes (Road Polylines on India map)
     effectiveGeoRoutes.forEach((route) => {
@@ -301,7 +308,14 @@ export function FleetMap({
         console.warn("Could not fit bounds:", err);
       }
     }
-  }, [effectiveGeoMarkers, effectiveGeoRoutes, centerLat, centerLng, zoom]);
+  }
+
+  setupMap();
+
+  return () => {
+    isCancelled = true;
+  };
+}, [effectiveGeoMarkers, effectiveGeoRoutes, centerLat, centerLng, zoom]);
 
   // Clean up Leaflet on unmount
   useEffect(() => {
@@ -320,8 +334,10 @@ export function FleetMap({
     }
   };
 
-  const handleFitAll = () => {
+  const handleFitAll = async () => {
     if (!mapInstanceRef.current) return;
+    const leafletModule = await import("leaflet");
+    const L = (leafletModule.default || leafletModule) as typeof import("leaflet");
     const allCoords: L.LatLngExpression[] = [];
     effectiveGeoMarkers.forEach((m) => allCoords.push([m.lat, m.lng]));
     effectiveGeoRoutes.forEach((r) => r.coordinates.forEach((c) => allCoords.push(c)));

@@ -23,7 +23,20 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { HandsFreeDisruptionModal } from "@/components/disruptions/hands-free-disruption-modal";
-import { FleetMap, GeoMarker, GeoRoute } from "@/components/map/fleet-map";
+import dynamic from "next/dynamic";
+import type { GeoMarker, GeoRoute } from "@/components/map/fleet-map";
+
+const FleetMap = dynamic(
+  () => import("@/components/map/fleet-map").then((mod) => mod.FleetMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[520px] rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)] flex items-center justify-center text-xs text-[var(--muted-foreground)]">
+        Loading interactive map...
+      </div>
+    ),
+  }
+);
 import { FLEET_ROUTE_PALETTE } from "@/lib/plans/store";
 
 interface FleetVehicle {

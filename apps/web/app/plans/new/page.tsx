@@ -13,7 +13,20 @@ import {
   ParsedOrderRow,
   VehiclesIngestionResult,
 } from "@/lib/ingestion/plan-parser";
-import { FleetMap, GeoMarker } from "@/components/map/fleet-map";
+import dynamic from "next/dynamic";
+import type { GeoMarker } from "@/components/map/fleet-map";
+
+const FleetMap = dynamic(
+  () => import("@/components/map/fleet-map").then((mod) => mod.FleetMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[400px] rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)] flex items-center justify-center text-xs text-[var(--muted-foreground)]">
+        Loading map preview...
+      </div>
+    ),
+  }
+);
 import {
   FileSpreadsheet,
   Upload,
