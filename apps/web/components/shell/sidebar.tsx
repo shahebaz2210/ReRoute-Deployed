@@ -43,7 +43,7 @@ export function Sidebar({ isCollapsed = false, onItemClick, className = "" }: Si
 
   return (
     <aside
-      className={`h-[calc(100vh-3.75rem)] border-r border-[var(--border)] bg-[var(--surface)] flex flex-col justify-between py-5 transition-all duration-200 select-none ${
+      className={`sticky top-15 h-[calc(100vh-3.75rem)] border-r border-[var(--border)] bg-[var(--surface)] flex flex-col justify-between py-5 transition-all duration-200 select-none overflow-y-auto shrink-0 ${
         isCollapsed ? "w-18 items-center px-2" : "w-64 px-4"
       } ${className}`}
     >

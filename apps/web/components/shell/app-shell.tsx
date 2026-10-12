@@ -48,10 +48,10 @@ export function AppShell({ children, user }: AppShellProps) {
         user={user}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Sidebar (Collapsible 240px / 64px) */}
-        <div className="hidden md:block shrink-0">
-          <Sidebar isCollapsed={isSidebarCollapsed} />
+      <div className="flex-1 flex min-h-0 relative items-start">
+        {/* Desktop Sidebar (Collapsible 240px / 64px) - Sticks with scroll up down */}
+        <div className="hidden md:block shrink-0 sticky top-15 h-[calc(100vh-3.75rem)] z-20 self-start">
+          <Sidebar isCollapsed={isSidebarCollapsed} className="h-full" />
         </div>
 
         {/* Mobile Navigation Drawer (<768px) */}
@@ -73,7 +73,7 @@ export function AppShell({ children, user }: AppShellProps) {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 focus:outline-none"
+          className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 focus:outline-none"
         >
           {children}
         </main>

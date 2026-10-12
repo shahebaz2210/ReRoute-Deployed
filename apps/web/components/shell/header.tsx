@@ -28,7 +28,7 @@ export interface HeaderProps {
 }
 
 export function Header({ onToggleSidebar, onOpenMobileDrawer, user }: HeaderProps) {
-  const [depot, setDepot] = useState("DEPOT-CENTRAL");
+  const [depot, setDepot] = useState("DEPOT-SWARGATE");
 
   const handleLogout = async () => {
     try {
@@ -84,9 +84,10 @@ export function Header({ onToggleSidebar, onOpenMobileDrawer, user }: HeaderProp
             className="bg-transparent text-xs font-semibold text-[var(--foreground)] focus:outline-none cursor-pointer"
             aria-label="Select depot facility"
           >
-            <option value="DEPOT-CENTRAL">Central Hub (DEPOT-01)</option>
-            <option value="DEPOT-NORTH">North Logistics Park (DEPOT-02)</option>
-            <option value="DEPOT-EAST">East Coast Terminal (DEPOT-03)</option>
+            <option value="DEPOT-SWARGATE">Swargate Central Hub (Pune)</option>
+            <option value="DEPOT-BKC">Mumbai Central Hub (BKC)</option>
+            <option value="DEPOT-BLR">Bengaluru Central Hub</option>
+            <option value="DEPOT-DELHI">Delhi NCR Cargo Terminal</option>
           </select>
         </div>
       </div>
