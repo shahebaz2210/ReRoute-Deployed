@@ -181,9 +181,11 @@ export function FleetMap({
       const map = L.map(mapContainerRef.current, {
         center: [initialLat, initialLng],
         zoom: zoom,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: true,
       });
+
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
 
       // Real OpenStreetMap Tile Layer (India & Worldwide Road Map)
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -329,9 +331,9 @@ export function FleetMap({
   };
 
   return (
-    <div className={`relative w-full rounded-xl overflow-hidden border border-[var(--border)] shadow-xs ${className}`}>
-      {/* Top Map Action Bar */}
-      <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-1.5 bg-[var(--surface-elevated)]/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-[var(--border)] shadow-md text-xs">
+    <div className={`relative w-full rounded-xl border border-[var(--border)] shadow-xs ${className}`}>
+      {/* Sticky Top Map Action Bar */}
+      <div className="sticky top-18 z-[1000] m-3 inline-flex flex-wrap items-center gap-1.5 bg-[var(--surface-elevated)]/95 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-[var(--border)] shadow-md text-xs pointer-events-auto self-start">
         <span className="font-bold text-[var(--foreground)] flex items-center gap-1 mr-1">
           <MapPin className="h-3.5 w-3.5 text-rose-500" /> India Map:
         </span>
@@ -388,7 +390,7 @@ export function FleetMap({
       <div
         ref={mapContainerRef}
         id="india-route-map"
-        className="w-full h-[520px] bg-[#E5E7EB] z-0"
+        className="w-full h-[520px] bg-[#E5E7EB] z-0 rounded-xl overflow-hidden -mt-[48px]"
       />
 
       {/* Map Legend Overlay */}

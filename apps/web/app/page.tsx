@@ -651,7 +651,7 @@ export default function ControlRoomPage() {
             centerLat={18.5018}
             centerLng={73.8586}
             zoom={12}
-            className="w-full h-[460px] rounded-lg border border-border overflow-hidden"
+            className="w-full"
           />
         </div>
 
