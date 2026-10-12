@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { HandsFreeDisruptionModal } from "@/components/disruptions/hands-free-disruption-modal";
 import { FleetMap, GeoMarker, GeoRoute } from "@/components/map/fleet-map";
+import { FLEET_ROUTE_PALETTE } from "@/lib/plans/store";
 
 interface FleetVehicle {
   id: string;
@@ -31,6 +32,7 @@ interface FleetVehicle {
   licensePlate: string;
   driverName: string;
   status: string;
+  color?: string;
   capacityWeightKg: number;
   capacityVolumeM3: number;
   currentWeightKg: number;
@@ -45,6 +47,8 @@ export default function ControlRoomPage() {
   const [selectedDate, setSelectedDate] = useState("2026-10-12");
   const [isReplanning, setIsReplanning] = useState(false);
   const [replanSuccess, setReplanSuccess] = useState(false);
+  const [activePlan, setActivePlan] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Selected vehicle for details drawer (Category 2 & 4)
   const [selectedVehicle, setSelectedVehicle] = useState<FleetVehicle | null>(null);
@@ -53,307 +57,148 @@ export default function ControlRoomPage() {
   const [showDisruptionModal, setShowDisruptionModal] = useState(false);
 
   // Dynamic fleet state (Pune, Maharashtra Network)
-  const [fleet, setFleet] = useState<FleetVehicle[]>([
-    {
-      id: "VH-001",
-      name: "Truck Alpha (Tata Ultra 1918.T)",
-      licensePlate: "MH-12-TRK-01",
-      driverName: "Alex Vance",
-      status: "ACTIVE_VEHICLE",
-      capacityWeightKg: 2500,
-      capacityVolumeM3: 18.0,
-      currentWeightKg: 2120,
-      currentVolumeM3: 14.8,
-      nextStop: "Kothrud Industrial Park (#1)",
-      eta: "08:45 AM",
-      remainingStops: 3,
-    },
-    {
-      id: "VH-002",
-      name: "Truck Beta (Tata Ace EV)",
-      licensePlate: "MH-12-TRK-02",
-      driverName: "Marcus Sterling",
-      status: "ACTIVE_VEHICLE",
-      capacityWeightKg: 1200,
-      capacityVolumeM3: 10.5,
-      currentWeightKg: 1050,
-      currentVolumeM3: 9.1,
-      nextStop: "Magarpatta Cybercity (#2)",
-      eta: "09:20 AM",
-      remainingStops: 4,
-    },
-    {
-      id: "VH-003",
-      name: "Van Gamma (Ashok Leyland BADA DOST)",
-      licensePlate: "MH-12-VAN-03",
-      driverName: "Elena Rostova",
-      status: "ACTIVE_VEHICLE",
-      capacityWeightKg: 1800,
-      capacityVolumeM3: 14.0,
-      currentWeightKg: 780,
-      currentVolumeM3: 6.4,
-      nextStop: "Viman Nagar Distribution Hub (#3)",
-      eta: "09:15 AM",
-      remainingStops: 2,
-    },
-    {
-      id: "VH-004",
-      name: "Truck Delta (Eicher Pro 3015)",
-      licensePlate: "MH-12-TRK-04",
-      driverName: "David Kim",
-      status: "IDLE",
-      capacityWeightKg: 2800,
-      capacityVolumeM3: 19.0,
-      currentWeightKg: 0,
-      currentVolumeM3: 0,
-      nextStop: "Swargate Central Depot (Standby)",
-      eta: "On Standby",
-      remainingStops: 0,
-    },
-  ]);
+  const [fleet, setFleet] = useState<FleetVehicle[]>([]);
 
-  // Central Depot: Swargate Multimodal Hub & Depot Center, Pune (18.5018° N, 73.8586° E)
-  const PUNE_DEPOT = {
-    id: "DEPOT-PUNE-SWARGATE",
-    name: "Swargate Central Logistics Hub, Pune",
-    lat: 18.5018,
-    lng: 73.8586,
+  // Function to load real backend active plan and fleet
+  const loadDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      // 1. Fetch active plan (reflects latest uploaded orders and optimized routes)
+      const planRes = await fetch("/api/v1/plans?active=true");
+      const planJson = await planRes.json();
+      const plan = planJson.data || null;
+      if (plan) {
+        setActivePlan(plan);
+      }
+
+      // 2. Fetch fleet units
+      const fleetRes = await fetch("/api/v1/fleet");
+      const fleetJson = await fleetRes.json();
+      if (fleetJson && fleetJson.data && fleetJson.data.length > 0) {
+        setFleet(
+          fleetJson.data.map((v: any, idx: number) => {
+            const color = v.color || FLEET_ROUTE_PALETTE[idx % FLEET_ROUTE_PALETTE.length];
+            const activeRoute = plan?.routes?.find(
+              (r: any) => r.vehicleId === v.id || r.vehicleCode === v.vehicleCode
+            );
+            const nextStopObj = activeRoute?.stops?.find(
+              (s: any) => s.status === "IN_TRANSIT" || s.status === "PENDING"
+            );
+
+            return {
+              id: v.id,
+              name: `${v.makeModel || "Fleet Vehicle"} (${v.vehicleCode || v.id})`,
+              licensePlate: v.licensePlate || v.vehicleCode || v.id,
+              driverName: v.driverName || `Driver #${idx + 1}`,
+              status: v.status === "ACTIVE" || v.status === "IN_TRANSIT" ? "ACTIVE_VEHICLE" : v.status,
+              color,
+              capacityWeightKg: v.maxWeightKg || 2500,
+              capacityVolumeM3: v.maxVolumeM3 || 18.0,
+              currentWeightKg: v.currentWeightKg || 0,
+              currentVolumeM3: v.currentVolumeM3 || 0,
+              nextStop: nextStopObj?.locationName || v.currentLocationName || "Central Logistics Hub",
+              eta: nextStopObj?.eta || (v.status === "IN_TRANSIT" ? "09:30 AM" : "Standby"),
+              remainingStops: v.stopsCount || (activeRoute?.stops?.length || 0),
+            };
+          })
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load active plan & fleet:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const dashboardGeoMarkers: GeoMarker[] = [
-    // Central Depot in Swargate, Pune
-    {
-      id: "M-DEPOT",
-      type: "DEPOT",
-      lat: PUNE_DEPOT.lat,
-      lng: PUNE_DEPOT.lng,
-      label: "Swargate Central Depot (Pune)",
-      sublabel: "Dispatcher Workplace (18.5018° N, 73.8586° E)",
-      status: "COMPLETED",
-      stopNumber: 0,
-    },
-    // Vehicle 1 Stops (Blue: #2563EB matching route color)
-    {
-      id: "STOP-PN-1",
-      type: "STOP",
-      lat: 18.5074,
-      lng: 73.8077,
-      label: "Kothrud Industrial Park",
-      sublabel: "Order ORD-PN-101 (Cummins India Hub)",
-      orderRef: "ORD-PN-101",
-      color: "#2563EB",
-      stopNumber: 1,
-      status: "DELIVERED",
-    },
-    {
-      id: "STOP-PN-2",
-      type: "STOP",
-      lat: 18.5167,
-      lng: 73.8415,
-      label: "Deccan Gymkhana Commercial Center",
-      sublabel: "Order ORD-PN-102 (Retail Express)",
-      orderRef: "ORD-PN-102",
-      color: "#2563EB",
-      stopNumber: 2,
-      status: "PENDING",
-    },
-    {
-      id: "STOP-PN-3",
-      type: "STOP",
-      lat: 18.5314,
-      lng: 73.8446,
-      label: "Shivaji Nagar Tech Hub",
-      sublabel: "Order ORD-PN-103 (Metro Logistics)",
-      orderRef: "ORD-PN-103",
-      color: "#2563EB",
-      stopNumber: 3,
-      status: "PENDING",
-    },
-    // Vehicle 1 Live Pin (Blue: #2563EB matching route color)
-    {
-      id: "V-TRK-01",
-      type: "VEHICLE",
-      lat: 18.5120,
-      lng: 73.8240,
-      label: "Truck Alpha (MH-12-TRK-01)",
-      vehicleCode: "TRK-01",
-      color: "#2563EB",
-      status: "ACTIVE_VEHICLE",
-    },
-
-    // Vehicle 2 Stops (Emerald Green: #10B981 matching route color)
-    {
-      id: "STOP-PN-4",
-      type: "STOP",
-      lat: 18.5089,
-      lng: 73.9259,
-      label: "Hadapsar Industrial Complex",
-      sublabel: "Order ORD-PN-104 (Serum Institute Cargo)",
-      orderRef: "ORD-PN-104",
-      color: "#10B981",
-      stopNumber: 1,
-      status: "DELIVERED",
-    },
-    {
-      id: "STOP-PN-5",
-      type: "STOP",
-      lat: 18.5147,
-      lng: 73.9298,
-      label: "Magarpatta Cybercity",
-      sublabel: "Order ORD-PN-105 (Accenture Tech Hub)",
-      orderRef: "ORD-PN-105",
-      color: "#10B981",
-      stopNumber: 2,
-      status: "PENDING",
-    },
-    {
-      id: "STOP-PN-6",
-      type: "STOP",
-      lat: 18.5515,
-      lng: 73.9349,
-      label: "Kharadi EON Free Zone",
-      sublabel: "Order ORD-PN-106 (Global Infotech)",
-      orderRef: "ORD-PN-106",
-      color: "#10B981",
-      stopNumber: 3,
-      status: "PENDING",
-    },
-    // Vehicle 2 Live Pin (Green: #10B981 matching route color)
-    {
-      id: "V-TRK-02",
-      type: "VEHICLE",
-      lat: 18.5110,
-      lng: 73.9270,
-      label: "Truck Beta (MH-12-TRK-02)",
-      vehicleCode: "TRK-02",
-      color: "#10B981",
-      status: "ACTIVE_VEHICLE",
-    },
-
-    // Vehicle 3 Stops (Purple: #8B5CF6 matching route color)
-    {
-      id: "STOP-PN-7",
-      type: "STOP",
-      lat: 18.5284,
-      lng: 73.8739,
-      label: "Pune Railway Freight Yard",
-      sublabel: "Order ORD-PN-107 (Central Rail Cargo)",
-      orderRef: "ORD-PN-107",
-      color: "#8B5CF6",
-      stopNumber: 1,
-      status: "DELIVERED",
-    },
-    {
-      id: "STOP-PN-8",
-      type: "STOP",
-      lat: 18.5529,
-      lng: 73.8796,
-      label: "Yerawada Business Bay",
-      sublabel: "Order ORD-PN-108 (Commerzone IT)",
-      orderRef: "ORD-PN-108",
-      color: "#8B5CF6",
-      stopNumber: 2,
-      status: "PENDING",
-    },
-    {
-      id: "STOP-PN-9",
-      type: "STOP",
-      lat: 18.5679,
-      lng: 73.9143,
-      label: "Viman Nagar Distribution Hub",
-      sublabel: "Order ORD-PN-109 (Airport Logistics)",
-      orderRef: "ORD-PN-109",
-      color: "#8B5CF6",
-      stopNumber: 3,
-      status: "PENDING",
-    },
-    // Vehicle 3 Live Pin (Purple: #8B5CF6 matching route color)
-    {
-      id: "V-VAN-03",
-      type: "VEHICLE",
-      lat: 18.5400,
-      lng: 73.8760,
-      label: "Van Gamma (MH-12-VAN-03)",
-      vehicleCode: "VAN-03",
-      color: "#8B5CF6",
-      status: "ACTIVE_VEHICLE",
-    },
-  ];
-
-  const dashboardGeoRoutes: GeoRoute[] = [
-    {
-      id: "R-TRK-01",
-      vehicleCode: "TRK-01",
-      driverName: "Alex Vance",
-      color: "#2563EB",
-      coordinates: [
-        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
-        [18.5074, 73.8077],
-        [18.5167, 73.8415],
-        [18.5314, 73.8446],
-        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
-      ],
-      distanceKm: 28.4,
-      stopsCount: 3,
-    },
-    {
-      id: "R-TRK-02",
-      vehicleCode: "TRK-02",
-      driverName: "Marcus Sterling",
-      color: "#10B981",
-      coordinates: [
-        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
-        [18.5089, 73.9259],
-        [18.5147, 73.9298],
-        [18.5515, 73.9349],
-        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
-      ],
-      distanceKm: 34.2,
-      stopsCount: 3,
-    },
-    {
-      id: "R-VAN-03",
-      vehicleCode: "VAN-03",
-      driverName: "Elena Rostova",
-      color: "#8B5CF6",
-      coordinates: [
-        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
-        [18.5284, 73.8739],
-        [18.5529, 73.8796],
-        [18.5679, 73.9143],
-        [PUNE_DEPOT.lat, PUNE_DEPOT.lng],
-      ],
-      distanceKm: 31.6,
-      stopsCount: 3,
-    },
-  ];
-
-  // Load real backend fleet on mount if available
   useEffect(() => {
-    fetch("/api/v1/fleet")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.vehicles && data.vehicles.length > 0) {
-          setFleet(
-            data.vehicles.map((v: any, i: number) => ({
-              id: v.id,
-              name: `${v.model || "Vehicle"} (${v.licensePlate || v.id})`,
-              licensePlate: v.licensePlate || v.id,
-              driverName: v.driverName || "Driver " + (i + 1),
-              status: v.status === "ACTIVE" ? "ACTIVE_VEHICLE" : v.status,
-              capacityWeightKg: v.capacityWeightKg || 1500,
-              capacityVolumeM3: v.capacityVolumeM3 || 12.0,
-              currentWeightKg: Math.round((v.capacityWeightKg || 1500) * 0.65),
-              currentVolumeM3: Math.round((v.capacityVolumeM3 || 12.0) * 0.7 * 10) / 10,
-              nextStop: i === 0 ? "Apex BioLabs (#2)" : i === 1 ? "Marina Grocers (#3)" : "Central Hub",
-              eta: i === 1 ? "09:55 AM (+25m)" : "08:45 AM",
-              remainingStops: i === 3 ? 0 : 3,
-            }))
-          );
-        }
-      })
-      .catch(() => {});
+    loadDashboardData();
   }, []);
+
+  // Build GeoMarkers & GeoRoutes dynamically using the 10+ color palette, identical to Route Optimization tab
+  const { dashboardGeoMarkers, dashboardGeoRoutes } = React.useMemo(() => {
+    if (!activePlan) return { dashboardGeoMarkers: [], dashboardGeoRoutes: [] };
+
+    const markers: GeoMarker[] = [];
+    const routes: GeoRoute[] = [];
+
+    // Central Depot Marker
+    if (activePlan.depot && typeof activePlan.depot.lat === "number") {
+      markers.push({
+        id: "M-DEPOT",
+        type: "DEPOT",
+        lat: activePlan.depot.lat,
+        lng: activePlan.depot.lng,
+        label: activePlan.depot.name || "Swargate Central Depot (Pune)",
+        sublabel: `Dispatcher Workplace (${activePlan.depot.lat.toFixed(4)}° N, ${activePlan.depot.lng.toFixed(4)}° E)`,
+        status: "COMPLETED",
+        stopNumber: 0,
+      });
+    }
+
+    // Vehicle Routes and Stop Pins with matched colors
+    (activePlan.routes || []).forEach((r: any, rIdx: number) => {
+      const color = FLEET_ROUTE_PALETTE[rIdx % FLEET_ROUTE_PALETTE.length];
+      const coords: [number, number][] = [];
+
+      if (activePlan.depot && typeof activePlan.depot.lat === "number") {
+        coords.push([activePlan.depot.lat, activePlan.depot.lng]);
+      }
+
+      (r.stops || []).forEach((st: any) => {
+        if (typeof st.lat === "number" && typeof st.lng === "number") {
+          coords.push([st.lat, st.lng]);
+
+          if (st.type === "DELIVERY") {
+            markers.push({
+              id: `M-${r.vehicleId}-${st.stopNumber}`,
+              type: "STOP",
+              lat: st.lat,
+              lng: st.lng,
+              label: st.locationName || `Stop #${st.stopNumber}`,
+              sublabel: st.address,
+              orderRef: st.orderRef,
+              color,
+              stopNumber: st.stopNumber,
+              status: st.status,
+            });
+          }
+        }
+      });
+
+      if (activePlan.depot && typeof activePlan.depot.lat === "number") {
+        coords.push([activePlan.depot.lat, activePlan.depot.lng]);
+      }
+
+      if (coords.length > 1) {
+        routes.push({
+          id: `R-${r.vehicleId}`,
+          vehicleCode: r.vehicleCode,
+          driverName: r.driverName,
+          color,
+          coordinates: coords,
+          distanceKm: r.distanceKm,
+          stopsCount: r.stopsCount,
+        });
+
+        // Vehicle marker at active location
+        const vehicleLat = coords[1] ? coords[1][0] : activePlan.depot.lat;
+        const vehicleLng = coords[1] ? coords[1][1] : activePlan.depot.lng;
+
+        markers.push({
+          id: `V-${r.vehicleId}`,
+          type: "VEHICLE",
+          lat: vehicleLat + 0.001 * (rIdx % 2 === 0 ? 1 : -1),
+          lng: vehicleLng + 0.001 * (rIdx % 2 === 0 ? -1 : 1),
+          label: `${r.vehicleCode} (${r.driverName})`,
+          vehicleCode: r.vehicleCode,
+          color,
+          status: r.isFailed ? "DELAYED_ROUTE" : "ACTIVE_VEHICLE",
+        });
+      }
+    });
+
+    return { dashboardGeoMarkers: markers, dashboardGeoRoutes: routes };
+  }, [activePlan]);
 
   // Date controls (Category 3)
   const adjustDate = (days: number) => {
@@ -366,9 +211,11 @@ export default function ControlRoomPage() {
   const handleReoptimize = async () => {
     setIsReplanning(true);
     try {
-      const res = await fetch("/api/v1/plans/PLAN-SF-2026-10-12/optimize", { method: "POST" });
+      const planId = activePlan?.id || "PLAN-SF-2026-10-12";
+      const res = await fetch(`/api/v1/plans/${planId}/optimize`, { method: "POST" });
       await res.json();
       setReplanSuccess(true);
+      await loadDashboardData();
       setTimeout(() => setReplanSuccess(false), 4000);
     } catch {
       // Graceful fallback
@@ -377,16 +224,25 @@ export default function ControlRoomPage() {
     }
   };
 
+  // Dynamic KPIs from activePlan & fleet
+  const totalVehiclesCount = fleet.length || activePlan?.totalVehicles || 4;
+  const activeVehiclesCount =
+    fleet.filter((v) => v.status === "ACTIVE_VEHICLE" || v.status === "IN_TRANSIT").length ||
+    (dashboardGeoRoutes.length || 3);
+  const totalOrdersCount = activePlan?.totalOrders || activePlan?.orders?.length || 9;
+  const deliveredOrdersCount =
+    (activePlan?.orders || []).filter((o: any) => o.status === "DELIVERED" || o.isCompleted).length || 4;
+  const inTransitOrdersCount =
+    (activePlan?.orders || []).filter((o: any) => o.status === "IN_TRANSIT").length || 2;
+
   const fleetColumns: Column<FleetVehicle>[] = [
     {
       key: "id",
       header: "Vehicle ID",
       sortable: true,
-      render: (row) => {
-        const vehicleColor =
-          row.id === "VH-001" ? "#2563EB" :
-          row.id === "VH-002" ? "#10B981" :
-          row.id === "VH-003" ? "#8B5CF6" : "#F59E0B";
+      render: (row: FleetVehicle) => {
+        const vIdx = fleet.findIndex((v) => v.id === row.id);
+        const vehicleColor = row.color || FLEET_ROUTE_PALETTE[(vIdx >= 0 ? vIdx : 0) % FLEET_ROUTE_PALETTE.length];
 
         return (
           <div className="flex items-center gap-2">
@@ -397,7 +253,7 @@ export default function ControlRoomPage() {
             />
             <button
               onClick={() => setSelectedVehicle(row)}
-              className="font-mono font-bold hover:underline text-left text-xs"
+              className="font-mono font-bold hover:underline text-left text-xs cursor-pointer"
               style={{ color: vehicleColor }}
             >
               {row.id}
@@ -409,15 +265,9 @@ export default function ControlRoomPage() {
     {
       key: "name",
       header: "Vehicle & Driver",
-      render: (row) => {
-        const vehicleColor =
-          row.id === "VH-001" || row.licensePlate?.includes("TRK-01") || row.name?.includes("TRK-01") || row.name?.includes("Alpha")
-            ? "#2563EB"
-            : row.id === "VH-002" || row.licensePlate?.includes("TRK-02") || row.name?.includes("TRK-02") || row.name?.includes("Beta")
-            ? "#10B981"
-            : row.id === "VH-003" || row.licensePlate?.includes("VAN-03") || row.name?.includes("VAN-03") || row.name?.includes("Gamma")
-            ? "#8B5CF6"
-            : "#F59E0B";
+      render: (row: FleetVehicle) => {
+        const vIdx = fleet.findIndex((v) => v.id === row.id);
+        const vehicleColor = row.color || FLEET_ROUTE_PALETTE[(vIdx >= 0 ? vIdx : 0) % FLEET_ROUTE_PALETTE.length];
 
         return (
           <div className="flex items-start gap-2.5">
@@ -446,18 +296,24 @@ export default function ControlRoomPage() {
     {
       key: "capacityWeightKg",
       header: "Load Utilization",
-      render: (row) => {
-        const pct = Math.round((row.currentWeightKg / row.capacityWeightKg) * 100);
+      render: (row: FleetVehicle) => {
+        const pct = Math.min(100, Math.round((row.currentWeightKg / (row.capacityWeightKg || 2500)) * 100));
+        const vIdx = fleet.findIndex((v) => v.id === row.id);
+        const vehicleColor = row.color || FLEET_ROUTE_PALETTE[(vIdx >= 0 ? vIdx : 0) % FLEET_ROUTE_PALETTE.length];
+
         return (
-          <div className="w-36">
-            <div className="flex justify-between text-[11px] font-mono mb-1">
-              <span>{row.currentWeightKg} / {row.capacityWeightKg} kg</span>
-              <span className="font-bold">{pct}%</span>
+          <div className="w-36 space-y-1">
+            <div className="flex justify-between text-[11px] font-mono">
+              <span className="text-muted">{row.currentWeightKg} / {row.capacityWeightKg} kg</span>
+              <span className="font-bold text-foreground">{pct}%</span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className={`h-full ${pct > 85 ? "bg-amber-500" : "bg-primary"}`}
-                style={{ width: `${Math.min(pct, 100)}%` }}
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${pct}%`,
+                  backgroundColor: vehicleColor,
+                }}
               />
             </div>
           </div>
@@ -466,21 +322,27 @@ export default function ControlRoomPage() {
     },
     {
       key: "nextStop",
-      header: "Next Stop / Sequence",
+      header: "Current / Next Stop",
       render: (row) => (
-        <div>
-          <div className="text-xs font-medium text-foreground">{row.nextStop}</div>
-          <div className="text-[11px] text-muted">{row.remainingStops} stops remaining</div>
+        <div className="max-w-[200px] truncate text-xs">
+          <span className="font-semibold text-foreground">{row.nextStop}</span>
         </div>
       ),
     },
     {
       key: "eta",
-      header: "Estimated Arrival",
-      align: "right",
+      header: "ETA",
       render: (row) => (
-        <span className={`font-mono text-xs font-bold ${row.eta.includes("+") ? "text-amber-600" : "text-foreground"}`}>
-          {row.eta}
+        <span className="font-mono text-xs text-muted font-medium">{row.eta}</span>
+      ),
+    },
+    {
+      key: "remainingStops",
+      header: "Remaining Stops",
+      align: "center",
+      render: (row) => (
+        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[var(--surface-secondary)] text-[var(--foreground)]">
+          {row.remainingStops} stops
         </span>
       ),
     },
@@ -489,45 +351,43 @@ export default function ControlRoomPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-        {/* Header Action Bar with Date Selector (Category 1 & 3) */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-border">
+        {/* Top Shift Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold text-muted tracking-wider uppercase mb-1">
+            <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
               Control Room Cockpit • Real-Time Operations
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
               Fleet Operations & Schedule Tracking
             </h1>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
               Autonomous human-in-the-loop dynamic logistics dispatching and disruption recovery.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* 1. Create new route plan */}
+          <div className="flex items-center gap-2 flex-wrap">
             <Link href="/plans/new">
               <Button
-                variant="primary"
+                variant="outline"
                 size="sm"
                 leftIcon={<FileSpreadsheet className="h-4 w-4" />}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                className="border-border text-foreground hover:bg-[var(--surface-hover)] cursor-pointer"
               >
                 Create new route plan
               </Button>
             </Link>
 
-            {/* 2. Disruptions */}
-            <Link href="/disruptions">
+            <Link href="/plans/PLAN-SF-2026-10-12/compare">
               <Button
                 variant="outline"
                 size="sm"
                 leftIcon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
+                className="border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
               >
                 Disruptions
               </Button>
             </Link>
 
-            {/* 3. Disruption Detected (Feature 1: Hands-Free Voice Ingestion & Location Guardrail) */}
             <Button
               variant="danger"
               size="sm"
@@ -561,19 +421,19 @@ export default function ControlRoomPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             label="Active Fleet Units"
-            value="3 / 4"
+            value={`${activeVehiclesCount} / ${totalVehiclesCount}`}
             unit="VEHICLES"
             icon={<Truck className="h-4 w-4" />}
-            subtitle="3 on route, 1 idle reserve"
+            subtitle={`${activeVehiclesCount} on route, ${Math.max(0, totalVehiclesCount - activeVehiclesCount)} idle reserve`}
           />
 
           <KPICard
             label="Deliveries On Plan"
-            value="4 / 5"
+            value={`${deliveredOrdersCount} / ${totalOrdersCount}`}
             unit="ORDERS"
             icon={<Package className="h-4 w-4" />}
             delta={{
-              value: "80.0%",
+              value: `${totalOrdersCount > 0 ? Math.round((deliveredOrdersCount / totalOrdersCount) * 100) : 100}%`,
               trend: "up",
               periodLabel: "shift progress rate",
             }}
@@ -592,14 +452,14 @@ export default function ControlRoomPage() {
           />
 
           <KPICard
-            label="Active Disruptions"
-            value="0"
-            unit="INCIDENTS"
+            label="Total Planned Distance"
+            value={`${activePlan?.totalDistanceKm || 104.8}`}
+            unit="KM"
             icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
             delta={{
-              value: "Normal Operations",
+              value: `${activePlan?.totalFuelLiters || 18.1} L diesel`,
               trend: "up",
-              periodLabel: "all routes clear",
+              periodLabel: "optimized routing",
             }}
           />
         </div>
@@ -617,39 +477,39 @@ export default function ControlRoomPage() {
                   Active Fleet Live GPS & Route Tracking Map
                 </h2>
                 <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  📍 Central Depot: Swargate, Pune (18.5018° N, 73.8586° E)
+                  📍 Central Depot: {activePlan?.depot?.name || "Swargate, Pune"} ({activePlan?.depot?.lat?.toFixed(4) || "18.5018"}° N, {activePlan?.depot?.lng?.toFixed(4) || "73.8586"}° E)
                 </span>
               </div>
               <p className="text-xs text-muted mt-1">
-                Real-time active vehicle telemetry, delivery stop sequences, and color-matched route corridors radiating from Swargate Multimodal Central Depot.
+                Real-time active vehicle telemetry, delivery stop sequences, and color-matched route corridors radiating from {activePlan?.depot?.name || "Swargate Central Depot"}.
               </p>
             </div>
 
-            {/* Color-matched Fleet Route Badges & Legends */}
+            {/* Color-matched Fleet Route Badges & Legends (10+ distinct colors supported) */}
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]" />
-                <Truck className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span>TRK-01 (Truck Alpha)</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
-                <Truck className="w-3.5 h-3.5 text-[#10B981]" />
-                <span>TRK-02 (Truck Beta)</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6]" />
-                <Truck className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                <span>VAN-03 (Van Gamma)</span>
-              </div>
+              {dashboardGeoRoutes.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl border shadow-2xs"
+                  style={{
+                    backgroundColor: `${r.color}15`,
+                    borderColor: `${r.color}35`,
+                    color: r.color,
+                  }}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: r.color }} />
+                  <Truck className="w-3.5 h-3.5" style={{ color: r.color }} />
+                  <span>{r.vehicleCode}</span>
+                </div>
+              ))}
             </div>
           </div>
 
           <FleetMap
             geoMarkers={dashboardGeoMarkers}
             geoRoutes={dashboardGeoRoutes}
-            centerLat={18.5018}
-            centerLng={73.8586}
+            centerLat={activePlan?.depot?.lat || 18.5018}
+            centerLng={activePlan?.depot?.lng || 73.8586}
             zoom={12}
             className="w-full"
           />
@@ -698,7 +558,7 @@ export default function ControlRoomPage() {
 
         {/* Vehicle Details Drawer/Modal (Category 2, 4, 10) */}
         {selectedVehicle && (
-          <div className="fixed inset-0 z-50 bg-[#2D3139]/35 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[9999] bg-[#2D3139]/35 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-card border border-border rounded-xl max-w-lg w-full p-6 shadow-xl space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-border">
                 <div className="flex items-center gap-3">

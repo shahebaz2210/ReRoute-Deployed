@@ -47,9 +47,20 @@ const demoPlans = [
   },
 ];
 
-import { createPlan, plansStore } from "@/lib/plans/store";
+import { createPlan, plansStore, getActivePlan } from "@/lib/plans/store";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const activeParam = searchParams.get("active");
+
+  if (activeParam === "true" || activeParam === "latest") {
+    const active = getActivePlan();
+    return NextResponse.json({
+      success: true,
+      data: active,
+    });
+  }
+
   const storePlans = Array.from(plansStore.values()).map((p) => ({
     id: p.id,
     planName: p.planName,

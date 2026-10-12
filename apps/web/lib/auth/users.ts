@@ -34,22 +34,26 @@ export const DEMO_USERS: UserRecord[] = [
   },
 ];
 
-export async function findUserByEmail(email: string): Promise<UserRecord | null> {
-  const normalized = email.toLowerCase().trim();
+export async function findUserByEmail(emailOrUsername: string): Promise<UserRecord | null> {
+  const normalized = emailOrUsername.toLowerCase().trim();
+  if (normalized === "dispatcher" || normalized === "dispatcher@vortexa.com" || normalized === "dispatch@vortexa.com") {
+    return DEMO_USERS[0];
+  }
   return DEMO_USERS.find((u) => u.email.toLowerCase() === normalized) || null;
 }
 
 export async function authenticateCredentials(
-  email: string,
+  emailOrUsername: string,
   plainTextPassword: string
 ): Promise<UserRecord | null> {
-  const user = await findUserByEmail(email);
+  const user = await findUserByEmail(emailOrUsername);
   if (!user) return null;
 
-  // Verify against precomputed hash or fallback plain check for tests
+  // Verify against precomputed hash or default credentials saved in codebase (dispatcher / 123456)
   const matches =
     (await verifyPassword(plainTextPassword, user.passwordHash)) ||
-    (user.email.includes("dispatcher") && plainTextPassword === "dispatch123") ||
+    (user.email.includes("dispatcher") &&
+      (plainTextPassword === "123456" || plainTextPassword === "dispatch123")) ||
     (user.email.includes("manager") && plainTextPassword === "manage123");
 
   if (!matches) return null;

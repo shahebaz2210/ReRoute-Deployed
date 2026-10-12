@@ -84,7 +84,7 @@ export interface StoredPlan {
   totalFuelLiters: number;
   totalCo2Kg: number;
   orders: StoredOrder[];
-  fleet?: typeof FLEET_UNITS;
+  fleet?: any[];
   routes: StoredRoute[];
   unassignedOrders: Array<{ orderId: string; reason: string }>;
   matrix?: {
@@ -623,6 +623,282 @@ export async function optimizePlan(
   return plan;
 }
 
+export const FLEET_ROUTE_PALETTE = [
+  "#2563EB", // 1. Royal Blue
+  "#16A34A", // 2. Emerald Green
+  "#9333EA", // 3. Purple
+  "#EA580C", // 4. Orange
+  "#0891B2", // 5. Cyan
+  "#DC2626", // 6. Red
+  "#D97706", // 7. Amber
+  "#4F46E5", // 8. Indigo
+  "#059669", // 9. Teal
+  "#C026D3", // 10. Fuchsia Pink
+  "#0284C7", // 11. Sky Blue
+  "#CA8A04", // 12. Mustard Yellow
+];
+
+export function getActivePlan(): StoredPlan {
+  const allStoredPlans = Array.from(plansStore.values());
+  if (allStoredPlans.length > 0) {
+    return allStoredPlans[allStoredPlans.length - 1];
+  }
+
+  // Initialize baseline default Pune plan if none in memory yet
+  const defaultPlanId = "PLAN-SF-2026-10-12";
+  const defaultPlan = createPlan(defaultPlanId, "Morning Dispatch Schedule (Swargate Pune Hub)", DEFAULT_SEED_ORDERS);
+
+  const depot = defaultPlan.depot;
+  const o = defaultPlan.orders;
+
+  const baselineRoutes: StoredRoute[] = [
+    {
+      vehicleId: "VH-001",
+      vehicleCode: "TRK-01",
+      vehicleName: "Truck Alpha (Tata Ultra 1918.T)",
+      driverName: "Alex Vance",
+      stopsCount: 4,
+      weightUtilizationPercent: 74,
+      volumeUtilizationPercent: 71,
+      totalWeightKg: 1050,
+      totalVolumeM3: 6.5,
+      distanceKm: 34.2,
+      durationMinutes: 145,
+      fuelConsumedLiters: 6.6,
+      co2EmittedKg: 17.7,
+      fuelEfficiencyKmPerL: 5.2,
+      stops: [
+        {
+          stopNumber: 1,
+          type: "DEPOT_DEPARTURE",
+          locationName: depot.name,
+          lat: depot.lat,
+          lng: depot.lng,
+          eta: "08:00 AM",
+          departure: "08:00 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 0,
+          cumulativeWeightKg: 0,
+          cumulativeVolumeM3: 0,
+          status: "COMPLETED",
+        },
+        {
+          stopNumber: 2,
+          type: "DELIVERY",
+          orderId: o[0]?.id || "ORD-PN-101",
+          orderRef: o[0]?.orderReference || "ORD-PN-101",
+          locationName: o[0]?.customerName || "Cummins India Engine Hub",
+          address: o[0]?.deliveryAddress || "Kothrud Industrial Area, Pune",
+          lat: o[0]?.latitude || 18.5074,
+          lng: o[0]?.longitude || 73.8077,
+          eta: "08:45 AM",
+          departure: "09:00 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 15,
+          cumulativeWeightKg: 420,
+          cumulativeVolumeM3: 2.8,
+          status: "DELIVERED",
+        },
+        {
+          stopNumber: 3,
+          type: "DELIVERY",
+          orderId: o[1]?.id || "ORD-PN-102",
+          orderRef: o[1]?.orderReference || "ORD-PN-102",
+          locationName: o[1]?.customerName || "Deccan Gymkhana Retail Express",
+          address: o[1]?.deliveryAddress || "FC Road, Deccan Gymkhana, Pune",
+          lat: o[1]?.latitude || 18.5167,
+          lng: o[1]?.longitude || 73.8415,
+          eta: "09:25 AM",
+          departure: "09:40 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 15,
+          cumulativeWeightKg: 700,
+          cumulativeVolumeM3: 4.4,
+          status: "IN_TRANSIT",
+        },
+        {
+          stopNumber: 4,
+          type: "DELIVERY",
+          orderId: o[2]?.id || "ORD-PN-103",
+          orderRef: o[2]?.orderReference || "ORD-PN-103",
+          locationName: o[2]?.customerName || "Shivaji Nagar Metro Logistics",
+          address: o[2]?.deliveryAddress || "Shivaji Nagar, Pune",
+          lat: o[2]?.latitude || 18.5314,
+          lng: o[2]?.longitude || 73.8446,
+          eta: "10:10 AM",
+          departure: "10:25 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 15,
+          cumulativeWeightKg: 1050,
+          cumulativeVolumeM3: 6.5,
+          status: "PENDING",
+        },
+      ],
+    },
+    {
+      vehicleId: "VH-002",
+      vehicleCode: "TRK-02",
+      vehicleName: "Truck Beta (Tata Ace EV)",
+      driverName: "Marcus Sterling",
+      stopsCount: 3,
+      weightUtilizationPercent: 82,
+      volumeUtilizationPercent: 78,
+      totalWeightKg: 960,
+      totalVolumeM3: 6.1,
+      distanceKm: 28.5,
+      durationMinutes: 130,
+      fuelConsumedLiters: 4.2,
+      co2EmittedKg: 3.6,
+      fuelEfficiencyKmPerL: 6.8,
+      stops: [
+        {
+          stopNumber: 1,
+          type: "DEPOT_DEPARTURE",
+          locationName: depot.name,
+          lat: depot.lat,
+          lng: depot.lng,
+          eta: "08:00 AM",
+          departure: "08:00 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 0,
+          cumulativeWeightKg: 0,
+          cumulativeVolumeM3: 0,
+          status: "COMPLETED",
+        },
+        {
+          stopNumber: 2,
+          type: "DELIVERY",
+          orderId: o[3]?.id || "ORD-PN-104",
+          orderRef: o[3]?.orderReference || "ORD-PN-104",
+          locationName: o[3]?.customerName || "Serum Institute Cargo Gate",
+          address: o[3]?.deliveryAddress || "Solapur Road, Hadapsar, Pune",
+          lat: o[3]?.latitude || 18.5089,
+          lng: o[3]?.longitude || 73.9259,
+          eta: "08:50 AM",
+          departure: "09:10 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 20,
+          cumulativeWeightKg: 650,
+          cumulativeVolumeM3: 4.2,
+          status: "DELIVERED",
+        },
+        {
+          stopNumber: 3,
+          type: "DELIVERY",
+          orderId: o[4]?.id || "ORD-PN-105",
+          orderRef: o[4]?.orderReference || "ORD-PN-105",
+          locationName: o[4]?.customerName || "Magarpatta Cybercity Tech Hub",
+          address: o[4]?.deliveryAddress || "Magarpatta City, Hadapsar, Pune",
+          lat: o[4]?.latitude || 18.5147,
+          lng: o[4]?.longitude || 73.9298,
+          eta: "09:30 AM",
+          departure: "09:45 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 15,
+          cumulativeWeightKg: 960,
+          cumulativeVolumeM3: 6.1,
+          status: "IN_TRANSIT",
+        },
+      ],
+    },
+    {
+      vehicleId: "VH-003",
+      vehicleCode: "VAN-03",
+      vehicleName: "Van Gamma (Ashok Leyland BADA DOST)",
+      driverName: "Elena Rostova",
+      stopsCount: 4,
+      weightUtilizationPercent: 72,
+      volumeUtilizationPercent: 68,
+      totalWeightKg: 1030,
+      totalVolumeM3: 6.6,
+      distanceKm: 42.1,
+      durationMinutes: 160,
+      fuelConsumedLiters: 7.3,
+      co2EmittedKg: 15.7,
+      fuelEfficiencyKmPerL: 5.8,
+      stops: [
+        {
+          stopNumber: 1,
+          type: "DEPOT_DEPARTURE",
+          locationName: depot.name,
+          lat: depot.lat,
+          lng: depot.lng,
+          eta: "08:30 AM",
+          departure: "08:30 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 0,
+          cumulativeWeightKg: 0,
+          cumulativeVolumeM3: 0,
+          status: "COMPLETED",
+        },
+        {
+          stopNumber: 2,
+          type: "DELIVERY",
+          orderId: o[5]?.id || "ORD-PN-106",
+          orderRef: o[5]?.orderReference || "ORD-PN-106",
+          locationName: o[5]?.customerName || "EON Free Zone IT Deliveries",
+          address: o[5]?.deliveryAddress || "Kharadi Knowledge Park, Pune",
+          lat: o[5]?.latitude || 18.5515,
+          lng: o[5]?.longitude || 73.9349,
+          eta: "09:15 AM",
+          departure: "09:35 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 20,
+          cumulativeWeightKg: 490,
+          cumulativeVolumeM3: 3.0,
+          status: "DELIVERED",
+        },
+        {
+          stopNumber: 3,
+          type: "DELIVERY",
+          orderId: o[7]?.id || "ORD-PN-108",
+          orderRef: o[7]?.orderReference || "ORD-PN-108",
+          locationName: o[7]?.customerName || "Yerawada Commerzone Express",
+          address: o[7]?.deliveryAddress || "Samrat Ashok Path, Yerawada, Pune",
+          lat: o[7]?.latitude || 18.5529,
+          lng: o[7]?.longitude || 73.8796,
+          eta: "10:05 AM",
+          departure: "10:20 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 15,
+          cumulativeWeightKg: 750,
+          cumulativeVolumeM3: 4.7,
+          status: "PENDING",
+        },
+        {
+          stopNumber: 4,
+          type: "DELIVERY",
+          orderId: o[8]?.id || "ORD-PN-109",
+          orderRef: o[8]?.orderReference || "ORD-PN-109",
+          locationName: o[8]?.customerName || "Viman Nagar Air Cargo Hub",
+          address: o[8]?.deliveryAddress || "Viman Nagar, Pune",
+          lat: o[8]?.latitude || 18.5679,
+          lng: o[8]?.longitude || 73.9143,
+          eta: "10:45 AM",
+          departure: "11:00 AM",
+          waitingMinutes: 0,
+          serviceMinutes: 15,
+          cumulativeWeightKg: 1030,
+          cumulativeVolumeM3: 6.6,
+          status: "PENDING",
+        },
+      ],
+    },
+  ];
+
+  defaultPlan.routes = baselineRoutes;
+  defaultPlan.status = "ACTIVE";
+  defaultPlan.totalDistanceKm = 104.8;
+  defaultPlan.totalDurationMinutes = 435;
+  defaultPlan.totalFuelLiters = 18.1;
+  defaultPlan.totalCo2Kg = 37.0;
+  plansStore.set(defaultPlanId, defaultPlan);
+  return defaultPlan;
+}
+
 export function getPlan(planId: string): StoredPlan | null {
+  if (planId === "latest" || planId === "active") {
+    return getActivePlan();
+  }
   return plansStore.get(planId) || null;
 }

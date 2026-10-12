@@ -117,7 +117,70 @@ export function HandsFreeDisruptionModal({
   onDisruptionConfirmed,
 }: HandsFreeDisruptionModalProps) {
   const router = useRouter();
-  const activeFleet = fleet && fleet.length > 0 ? fleet : DEFAULT_FLEET;
+  const [activePlan, setActivePlan] = useState<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/v1/plans?active=true")
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data) {
+            setActivePlan(json.data);
+            if (json.data.fleet && json.data.fleet.length > 0) {
+              setSelectedVehicleId(json.data.fleet[0].id || json.data.fleet[0].vehicleCode);
+            }
+            const oList = json.data.orders || [];
+            if (oList.length > 0) {
+              const o1 = oList[0];
+              const o2 = oList[1] || o1;
+              const dName = json.data.depot?.name || "Central Logistics Hub, Swargate Pune";
+              setTrafficFrom(dName);
+              setTrafficTo(o2.orderReference || o2.id);
+              setCancelledOrderId(o2.orderReference || o2.id);
+              setCancelledCustomer(o2.customerName || "Customer");
+              setRoadClosureFrom(dName);
+              setRoadClosureTo(o2.orderReference || o2.id);
+            }
+          }
+        })
+        .catch((err) => console.error("Failed to load active plan for modal:", err));
+    }
+  }, [isOpen]);
+
+  const activeFleet: FleetVehicleSummary[] = React.useMemo(() => {
+    if (activePlan?.fleet && activePlan.fleet.length > 0) {
+      return activePlan.fleet.map((v: any, idx: number) => {
+        const matchingRoute = (activePlan.routes || []).find(
+          (r: any) => r.vehicleId === v.id || r.vehicleCode === v.vehicleCode
+        );
+        const delStops = matchingRoute?.stops?.filter((s: any) => s.type === "DELIVERY") || [];
+        return {
+          id: v.id || v.vehicleCode,
+          name: v.name || v.vehicleCode || `Vehicle #${idx + 1}`,
+          licensePlate: v.licensePlate || v.vehicleCode,
+          driverName: v.driverName || `Driver #${idx + 1}`,
+          status: matchingRoute?.isFailed ? "BREAKDOWN" : "ACTIVE_VEHICLE",
+          capacityWeightKg: v.capacityWeightKg || 2500,
+          capacityVolumeM3: v.capacityVolumeM3 || 18.0,
+          currentWeightKg: matchingRoute?.totalWeightKg || 0,
+          currentVolumeM3: matchingRoute?.totalVolumeM3 || 0,
+          nextStop: delStops[0]?.locationName || "Active Route",
+          eta: delStops[0]?.eta || "09:00 AM",
+          remainingStops: delStops.length,
+        };
+      });
+    }
+    return fleet && fleet.length > 0 ? fleet : DEFAULT_FLEET;
+  }, [activePlan, fleet]);
+
+  const activeOrders: Array<{ id: string; orderReference: string; customerName: string; deliveryAddress: string }> = React.useMemo(() => {
+    if (activePlan?.orders && activePlan.orders.length > 0) {
+      return activePlan.orders;
+    }
+    return [];
+  }, [activePlan]);
+
+  const activeDepotName = activePlan?.depot?.name || "Swargate Central Logistics Hub, Pune";
 
   // 1. Disruption Type State (The 4 Disruption Types)
   const [disruptionType, setDisruptionType] = useState<
@@ -253,58 +316,12 @@ export function HandsFreeDisruptionModal({
       }
 
       const incident = parsed.incident || {};
-      const incType = incident.type;
-      let scenarioKey = "TRAFFIC_CONGESTION";
-      if (incType === "TRAFFIC_CONGESTION" || incType === "TRAFFIC_DELAY") {
-        scenarioKey = "TRAFFIC_CONGESTION";
-      } else if (incType === "CANCELLATION") {
-        scenarioKey = "CANCELLATION";
-      } else if (incType === "VEHICLE_BREAKDOWN" || incType === "BREAKDOWN") {
-        scenarioKey = "VEHICLE_BREAKDOWN";
-      } else {
-        scenarioKey = "ROAD_CLOSURE";
-      }
-
-      const finalPayload = {
-        incidentType: incType === "VEHICLE_BREAKDOWN" ? "BREAKDOWN" : incType,
-        vehicleCode: incident.vehicle_code || `${selectedVehicle.id} (${selectedVehicle.name})`,
-        driverName: incident.driver_name || selectedVehicle.driverName,
-        locationName: incident.to
-          ? `${incident.from} ➔ ${incident.to}`
-          : incident.from || "Active Corridor",
-        description: incident.extracted_summary || disruptionReason,
-        delayMinutes: incident.delay_minutes || 45,
-        from: incident.from,
-        to: incident.to,
-        failureTimeMinutes: incident.failure_time_minutes,
-      };
-
-      // 1. Post to platform disruptions store
-      await fetch("/api/v1/disruptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalPayload),
-      });
-
-      // 2. Trigger OR-Tools replan
-      await fetch("/api/v1/plans/PLAN-SF-2026-10-12/optimize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          disruption: finalPayload,
-          vehicle_id: selectedVehicle.id,
-        }),
-      });
-
-      if (onDisruptionConfirmed) {
-        onDisruptionConfirmed(finalPayload);
-      }
-
-      onClose();
-      router.push(`/plans/PLAN-SF-2026-10-12/compare?scenario=${scenarioKey}`);
+      // Step 1: Save interpreted incident and await dispatcher confirmation (PS S-01 Requirement)
+      setInterpretedIncident(incident);
+      setAwaitingConfirmation(true);
+      setIsInterpreting(false);
     } catch {
-      setGuardrailError("Failed to deploy disruption report. Please try again.");
-    } finally {
+      setGuardrailError("Failed to interpret disruption report. Please check server connection.");
       setIsInterpreting(false);
     }
   };
@@ -403,7 +420,7 @@ export function HandsFreeDisruptionModal({
       });
 
       // 2. Trigger OR-Tools replan
-      await fetch("/api/v1/plans/PLAN-SF-2026-10-12/optimize", {
+      await fetch(`/api/v1/plans/${activePlan?.id || "PLAN-SF-2026-10-12"}/optimize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -418,14 +435,14 @@ export function HandsFreeDisruptionModal({
 
       onClose();
       // Redirect to side-by-side comparison page with scenario param
-      router.push(`/plans/PLAN-SF-2026-10-12/compare?scenario=${scenarioKey}`);
+      router.push(`/plans/${activePlan?.id || "PLAN-SF-2026-10-12"}/compare?scenario=${scenarioKey}`);
     } catch {
       setGuardrailError("Failed to deploy replanning changes. Please try again.");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D3139]/40 backdrop-blur-xs p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#2D3139]/40 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="w-full max-w-2xl bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[94vh]">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-secondary)]/50">
@@ -642,10 +659,12 @@ export function HandsFreeDisruptionModal({
                       onChange={(e) => setTrafficFrom(e.target.value)}
                       className="w-full p-2 rounded border border-[var(--border)] bg-[var(--surface-secondary)]"
                     >
-                      <option value="DEPOT-SF-01">DEPOT-SF-01 (Central Hub)</option>
-                      <option value="ORD-9901">ORD-9901 (Apex BioLabs - Berry St)</option>
-                      <option value="ORD-9902">ORD-9902 (Marina Grocers - Chestnut St)</option>
-                      <option value="ORD-9903">ORD-9903 (Mission Culinary - Valencia St)</option>
+                      <option value={activeDepotName}>{activeDepotName} (Central Depot)</option>
+                      {activeOrders.map((o) => (
+                        <option key={o.id} value={o.orderReference || o.id}>
+                          {o.orderReference} — {o.customerName}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -655,10 +674,11 @@ export function HandsFreeDisruptionModal({
                       onChange={(e) => setTrafficTo(e.target.value)}
                       className="w-full p-2 rounded border border-[var(--border)] bg-[var(--surface-secondary)]"
                     >
-                      <option value="ORD-9902">ORD-9902 (Marina Grocers - Chestnut St)</option>
-                      <option value="ORD-9903">ORD-9903 (Mission Culinary - Valencia St)</option>
-                      <option value="ORD-9904">ORD-9904 (Presidio Diagnostic - Montgomery St)</option>
-                      <option value="ORD-9905">ORD-9905 (BayTech Robotics - 2nd St)</option>
+                      {activeOrders.map((o) => (
+                        <option key={o.id} value={o.orderReference || o.id}>
+                          {o.orderReference} — {o.customerName} ({o.deliveryAddress})
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -693,15 +713,16 @@ export function HandsFreeDisruptionModal({
                       value={cancelledOrderId}
                       onChange={(e) => {
                         setCancelledOrderId(e.target.value);
-                        if (e.target.value === "ORD-9902") setCancelledCustomer("Marina Grocers");
-                        if (e.target.value === "ORD-9901") setCancelledCustomer("Apex BioLabs");
-                        if (e.target.value === "ORD-9903") setCancelledCustomer("Mission Culinary");
+                        const match = activeOrders.find((o) => (o.orderReference || o.id) === e.target.value);
+                        if (match) setCancelledCustomer(match.customerName);
                       }}
                       className="w-full p-2 rounded border border-[var(--border)] bg-[var(--surface-secondary)] font-mono"
                     >
-                      <option value="ORD-9902">ORD-9902 — Marina Grocers (2200 Chestnut St)</option>
-                      <option value="ORD-9901">ORD-9901 — Apex BioLabs (185 Berry St)</option>
-                      <option value="ORD-9903">ORD-9903 — Mission Culinary (740 Valencia St)</option>
+                      {activeOrders.map((o) => (
+                        <option key={o.id} value={o.orderReference || o.id}>
+                          {o.orderReference} — {o.customerName} ({o.deliveryAddress})
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -737,10 +758,12 @@ export function HandsFreeDisruptionModal({
                       onChange={(e) => setRoadClosureFrom(e.target.value)}
                       className="w-full p-2 rounded border border-[var(--border)] bg-[var(--surface-secondary)]"
                     >
-                      <option value="DEPOT-SF-01">DEPOT-SF-01 (Central Hub)</option>
-                      <option value="ORD-9901">ORD-9901 (Apex BioLabs - Berry St)</option>
-                      <option value="ORD-9902">ORD-9902 (Marina Grocers - Chestnut St)</option>
-                      <option value="ORD-9903">ORD-9903 (Mission Culinary - Valencia St)</option>
+                      <option value={activeDepotName}>{activeDepotName} (Central Depot)</option>
+                      {activeOrders.map((o) => (
+                        <option key={o.id} value={o.orderReference || o.id}>
+                          {o.orderReference} — {o.customerName}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -750,10 +773,11 @@ export function HandsFreeDisruptionModal({
                       onChange={(e) => setRoadClosureTo(e.target.value)}
                       className="w-full p-2 rounded border border-[var(--border)] bg-[var(--surface-secondary)]"
                     >
-                      <option value="ORD-9902">ORD-9902 (Marina Grocers - Chestnut St)</option>
-                      <option value="ORD-9903">ORD-9903 (Mission Culinary - Valencia St)</option>
-                      <option value="ORD-9904">ORD-9904 (Presidio Diagnostic - Montgomery St)</option>
-                      <option value="ORD-9905">ORD-9905 (BayTech Robotics - 2nd St)</option>
+                      {activeOrders.map((o) => (
+                        <option key={o.id} value={o.orderReference || o.id}>
+                          {o.orderReference} — {o.customerName} ({o.deliveryAddress})
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -910,26 +934,72 @@ export function HandsFreeDisruptionModal({
                 </button>
               </div>
 
-              {/* Add Disruption button */}
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleAddDisruptionTextVoice}
-                disabled={!disruptionReason.trim() || isInterpreting}
-                className="w-full mt-2 font-bold bg-primary text-primary-foreground py-2 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs hover:brightness-105"
-              >
-                {isInterpreting ? (
-                  <>
-                    <span className="inline-block animate-spin mr-1">⟳</span>
-                    <span>Adding Disruption...</span>
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle className="h-4 w-4" />
-                    <span>Add Disruption</span>
-                  </>
-                )}
-              </Button>
+              {/* Interpreted Confirmation Review Card (PS S-01 Requirement) */}
+              {awaitingConfirmation && interpretedIncident && (
+                <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/40 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-emerald-200 dark:border-emerald-800 pb-2">
+                    <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span>Dispatcher Confirmation Required (PS S-01 Rule)</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 font-bold">
+                      Awaiting Confirmation
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-[var(--foreground)] space-y-2 p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] shadow-2xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[var(--muted-foreground)]">Interpreted Scenario:</span>
+                      <span className="font-bold text-[var(--primary)] font-mono">{interpretedIncident.type}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[var(--muted-foreground)]">Vehicle Affected:</span>
+                      <span className="font-semibold">{selectedVehicle.id} — {selectedVehicle.name}</span>
+                    </div>
+                    {interpretedIncident.from && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-[var(--muted-foreground)]">Network Corridor / Node:</span>
+                        <span className="font-mono font-semibold">{interpretedIncident.from} {interpretedIncident.to ? `➔ ${interpretedIncident.to}` : ""}</span>
+                      </div>
+                    )}
+                    {interpretedIncident.delay_minutes > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-[var(--muted-foreground)]">Corridor Delay Impact:</span>
+                        <span className="font-mono font-bold text-amber-600">+{interpretedIncident.delay_minutes} min</span>
+                      </div>
+                    )}
+                    <div className="pt-2 border-t border-[var(--border)] text-[11px] text-[var(--muted-foreground)]">
+                      <strong className="text-[var(--foreground)]">Extracted Report:</strong> {interpretedIncident.extracted_summary || disruptionReason}
+                    </div>
+                    <div className="p-2.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-800 dark:text-emerald-300">
+                      <strong>Operational Policy Enforced:</strong> Replanning starts from current state: completed stops stay fixed (Freeze Horizon), and a failed vehicle receives NO stops after its failure time.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Add / Review Disruption button */}
+              {!awaitingConfirmation && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleAddDisruptionTextVoice}
+                  disabled={!disruptionReason.trim() || isInterpreting}
+                  className="w-full mt-2 font-bold bg-primary text-primary-foreground py-2 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs hover:brightness-105"
+                >
+                  {isInterpreting ? (
+                    <>
+                      <span className="inline-block animate-spin mr-1">⟳</span>
+                      <span>Interpreting Report...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-4 w-4" />
+                      <span>Interpret & Review Disruption Report</span>
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           )}
 
@@ -941,7 +1011,7 @@ export function HandsFreeDisruptionModal({
                 <strong className="block font-bold">Location Guardrail Rejection (PS S-01 Rule):</strong>
                 <p className="mt-0.5">{guardrailError}</p>
                 <span className="inline-block mt-1 text-[11px] font-mono text-rose-800 dark:text-rose-200">
-                  Known network nodes: Depot-SF-01, Market St, Chestnut St, Valencia St, Montgomery St, 2nd St, Berry St, Van Ness.
+                  Known network nodes: Depot-SF-01, Market St, Chestnut St, Valencia St, Montgomery St, 2nd St, Berry St, Van Ness, Swargate, Kothrud, Hadapsar, Magarpatta, Viman Nagar.
                 </span>
               </div>
             </div>
@@ -959,11 +1029,30 @@ export function HandsFreeDisruptionModal({
               variant="primary"
               size="sm"
               onClick={handleConfirmAndDeploy}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 cursor-pointer"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <span>Add Disruption & Trigger Replanning</span>
               <ArrowRight className="h-4 w-4" />
             </Button>
+          ) : awaitingConfirmation ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAwaitingConfirmation(false)}
+              >
+                Modify Report
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmAndDeploy}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Confirm & Apply Replanning</span>
+              </Button>
+            </div>
           ) : (
             <Button
               variant="primary"
@@ -973,7 +1062,7 @@ export function HandsFreeDisruptionModal({
               className="bg-primary text-primary-foreground font-bold flex items-center gap-1.5 cursor-pointer"
             >
               <PlusCircle className="h-4 w-4" />
-              <span>{isInterpreting ? "Adding Disruption..." : "Add Disruption"}</span>
+              <span>{isInterpreting ? "Interpreting..." : "Interpret Report"}</span>
             </Button>
           )}
         </div>

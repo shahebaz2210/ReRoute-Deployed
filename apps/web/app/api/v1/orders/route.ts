@@ -127,7 +127,7 @@ let inMemoryOrders: OrderRecord[] = [
   },
 ];
 
-import { plansStore } from "@/lib/plans/store";
+import { plansStore, getActivePlan } from "@/lib/plans/store";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -138,12 +138,7 @@ export async function GET(req: NextRequest) {
   let ordersList: any[] = [];
 
   // Check if plans exist in plansStore
-  const allStoredPlans = Array.from(plansStore.values());
-  const targetPlan = planId
-    ? plansStore.get(planId)
-    : allStoredPlans.length > 0
-    ? allStoredPlans[allStoredPlans.length - 1]
-    : null;
+  const targetPlan = planId ? plansStore.get(planId) : getActivePlan();
 
   if (targetPlan && targetPlan.orders && targetPlan.orders.length > 0) {
     ordersList = targetPlan.orders.map((o) => ({

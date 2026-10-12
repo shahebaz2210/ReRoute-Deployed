@@ -55,7 +55,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer, s
       aria-modal="true"
       aria-labelledby={title ? "modal-title" : undefined}
       aria-describedby={description ? "modal-description" : undefined}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2D3139]/30 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#2D3139]/30 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

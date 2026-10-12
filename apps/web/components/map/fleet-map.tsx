@@ -331,9 +331,9 @@ export function FleetMap({
   };
 
   return (
-    <div className={`relative w-full rounded-xl border border-[var(--border)] shadow-xs ${className}`}>
+    <div className={`relative isolate z-0 w-full rounded-xl border border-[var(--border)] shadow-xs ${className}`}>
       {/* Sticky Top Map Action Bar */}
-      <div className="sticky top-18 z-[1000] m-3 inline-flex flex-wrap items-center gap-1.5 bg-[var(--surface-elevated)]/95 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-[var(--border)] shadow-md text-xs pointer-events-auto self-start">
+      <div className="sticky top-18 z-20 m-3 inline-flex flex-wrap items-center gap-1.5 bg-[var(--surface-elevated)]/95 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-[var(--border)] shadow-md text-xs pointer-events-auto self-start">
         <span className="font-bold text-[var(--foreground)] flex items-center gap-1 mr-1">
           <MapPin className="h-3.5 w-3.5 text-rose-500" /> India Map:
         </span>
@@ -394,7 +394,7 @@ export function FleetMap({
       />
 
       {/* Map Legend Overlay */}
-      <div className="absolute bottom-3 right-3 z-[1000] bg-[var(--surface-elevated)]/90 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--border)] shadow-md text-[11px] flex items-center gap-3">
+      <div className="absolute bottom-3 right-3 z-10 bg-[var(--surface-elevated)]/90 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--border)] shadow-md text-[11px] flex items-center gap-3">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-[#1E222A] border border-[#F59E0B]" />
           <span className="font-semibold text-[var(--foreground)]">Central Depot (India)</span>

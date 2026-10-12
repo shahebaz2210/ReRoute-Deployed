@@ -73,6 +73,20 @@ export const KNOWN_NETWORK_LOCATIONS = [
   "ord-9903",
   "ord-9904",
   "ord-9905",
+  "central hub depot",
+  "central hub",
+  "swargate",
+  "swargate central depot",
+  "kothrud",
+  "kothrud industrial",
+  "hadapsar",
+  "magarpatta",
+  "viman nagar",
+  "deccan",
+  "shivajinagar",
+  "hinjawadi",
+  "camp",
+  "cummins india",
 ];
 
 export function parseVoiceTranscript(

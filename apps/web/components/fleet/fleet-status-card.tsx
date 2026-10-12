@@ -15,6 +15,7 @@ export interface FleetVehicle {
   maxVolumeM3: number;
   currentWeightKg?: number;
   status: string;
+  color?: string;
   fuelPercent?: number;
   odometerKm?: number;
   driverName?: string;
@@ -24,20 +25,30 @@ export interface FleetVehicle {
 export function FleetStatusCard({ vehicle }: { vehicle: FleetVehicle }) {
   const currentLoad = vehicle.currentWeightKg ?? Math.round(vehicle.maxWeightKg * 0.75);
   const loadPercent = Math.min(100, Math.round((currentLoad / vehicle.maxWeightKg) * 100));
+  const accentColor = vehicle.color || "#2D3139";
 
   return (
     <div className="flex flex-col p-5 rounded-2xl border border-neutral-200/80 bg-white dark:border-neutral-800 dark:bg-neutral-900 hover:border-[#2D3139] transition-all shadow-2xs gap-3.5">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+          <div
+            className="p-2.5 rounded-xl shadow-2xs transition-colors"
+            style={{
+              backgroundColor: `${accentColor}18`,
+              color: accentColor,
+              border: `1px solid ${accentColor}30`,
+            }}
+          >
             <Truck className="h-5 w-5" />
           </div>
           <div>
             <Link
               href={`/fleet/${vehicle.id || vehicle.vehicleCode}`}
-              className="text-sm font-bold text-[#272A30] dark:text-neutral-50 tracking-tight hover:text-primary hover:underline"
+              className="text-sm font-bold text-[#272A30] dark:text-neutral-50 tracking-tight hover:underline flex items-center gap-1.5"
+              style={{ color: accentColor }}
             >
-              {vehicle.vehicleCode}
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: accentColor }} />
+              <span>{vehicle.vehicleCode}</span>
             </Link>
             <p className="text-[11px] text-neutral-500 font-normal">{vehicle.makeModel}</p>
           </div>
@@ -64,15 +75,11 @@ export function FleetStatusCard({ vehicle }: { vehicle: FleetVehicle }) {
         </div>
         <div className="h-2 w-full rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
           <div
-            className={cn(
-              "h-full rounded-full transition-all",
-              loadPercent > 90
-                ? "bg-red-500"
-                : loadPercent > 75
-                ? "bg-amber-500"
-                : "bg-[#2D3139] dark:bg-neutral-100"
-            )}
-            style={{ width: `${loadPercent}%` }}
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${loadPercent}%`,
+              backgroundColor: loadPercent > 90 ? "#DC2626" : accentColor,
+            }}
           />
         </div>
       </div>

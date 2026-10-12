@@ -33,9 +33,9 @@ export function Header({ onToggleSidebar, onOpenMobileDrawer, user }: HeaderProp
   const handleLogout = async () => {
     try {
       await fetch("/api/v1/auth/logout", { method: "POST" });
-      window.location.href = "/";
+      window.location.href = "/login";
     } catch {
-      window.location.reload();
+      window.location.href = "/login";
     }
   };
 
@@ -105,6 +105,14 @@ export function Header({ onToggleSidebar, onOpenMobileDrawer, user }: HeaderProp
           <span>Operational</span>
         </div>
 
+        {/* Quick link to Landing Page */}
+        <Link
+          href="/landing"
+          className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-hover)] text-xs font-semibold text-[var(--foreground)] transition-colors"
+        >
+          <span>SaaS Overview</span>
+        </Link>
+
         <ThemeToggle />
 
         {/* User Account Menu */}
@@ -126,15 +134,33 @@ export function Header({ onToggleSidebar, onOpenMobileDrawer, user }: HeaderProp
           <div className="w-56 p-2 flex flex-col gap-1 text-xs">
             <div className="px-3 py-2 border-b border-[var(--border)] mb-1">
               <span className="font-bold text-[var(--foreground)] block">
-                {user?.name || "Marcus Sterling"}
+                {user?.name || "Alex Vance (Chief Dispatcher)"}
               </span>
               <span className="text-[11px] text-[var(--muted-foreground)] block">
-                {user?.email || "dispatcher@dispatchx.io"}
+                {user?.email || "dispatcher@vortexa.com"}
               </span>
               <span className="inline-block mt-1 font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-[var(--surface-secondary)] text-[var(--foreground)]">
                 {user?.role || "DISPATCHER"}
               </span>
             </div>
+
+            <Link
+              href="/landing"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-[var(--foreground)] hover:bg-[var(--surface-hover)] text-xs font-medium cursor-pointer"
+            >
+              <Layers className="h-4 w-4 text-[var(--muted-foreground)]" />
+              <span>SaaS Landing Page</span>
+            </Link>
+
+            <Link
+              href="/login"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-[var(--foreground)] hover:bg-[var(--surface-hover)] text-xs font-medium cursor-pointer"
+            >
+              <Shield className="h-4 w-4 text-[var(--muted-foreground)]" />
+              <span>Dispatcher Sign In</span>
+            </Link>
+
+            <div className="my-1 border-t border-[var(--border)]" />
 
             <button
               type="button"

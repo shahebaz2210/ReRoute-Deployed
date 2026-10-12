@@ -5,10 +5,15 @@ import { createSession } from "@/lib/auth/session";
 import { checkLoginRateLimit } from "@/lib/auth/rate-limit";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 
-const LoginRequestSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
+const LoginRequestSchema = z
+  .object({
+    email: z.string().optional(),
+    username: z.string().optional(),
+    password: z.string().min(1),
+  })
+  .refine((data) => Boolean(data.email || data.username), {
+    message: "Email or username is required",
+  });
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,14 +28,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, password } = parsed.data;
-    const rateLimitKey = `${ip}:${email.toLowerCase()}`;
+    const identifier = (parsed.data.username || parsed.data.email || "").trim();
+    const { password } = parsed.data;
+    const rateLimitKey = `${ip}:${identifier.toLowerCase()}`;
     const rateLimit = checkLoginRateLimit(rateLimitKey);
 
     if (!rateLimit.allowed) {
       await recordAuditEvent({
         organizationId: "00000000-0000-0000-0000-000000000000",
-        actorId: email,
+        actorId: identifier,
         action: "AUTH_LOGIN_LOCKED",
         entityType: "USER",
         entityId: "00000000-0000-0000-0000-000000000000",
@@ -50,15 +56,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await authenticateCredentials(email, password);
+    const user = await authenticateCredentials(identifier, password);
     if (!user) {
       await recordAuditEvent({
         organizationId: "00000000-0000-0000-0000-000000000000",
-        actorId: email,
+        actorId: identifier,
         action: "AUTH_LOGIN_FAILURE",
         entityType: "USER",
         entityId: "00000000-0000-0000-0000-000000000000",
-        afterState: { ip, email, remainingAttempts: rateLimit.remaining },
+        afterState: { ip, identifier, remainingAttempts: rateLimit.remaining },
       });
 
       return NextResponse.json(
@@ -92,9 +98,9 @@ export async function POST(req: NextRequest) {
         organizationId: session.organizationId,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { error: "INTERNAL_ERROR", message: "Failed to process login request" },
+      { error: "INTERNAL_ERROR", message: error?.message || "Failed to process login request" },
       { status: 500 }
     );
   }

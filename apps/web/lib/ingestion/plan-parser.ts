@@ -13,6 +13,8 @@ export interface ParsedOrderRow {
   timeWindowEnd: string;   // "HH:MM"
   serviceDurationMinutes: number;
   priority: "STANDARD" | "EXPRESS" | "CRITICAL";
+  driverName?: string;
+  licensePlate?: string;
   rawRow: Record<string, unknown>;
 }
 
@@ -375,6 +377,8 @@ export interface ParsedVehicleRow {
   endLocation: string;
   depotLatitude?: number;
   depotLongitude?: number;
+  driverName?: string;
+  licensePlate?: string;
   rawRow: Record<string, unknown>;
 }
 
@@ -581,6 +585,8 @@ export function parseVehiclesPlanBuffer(
         fuelEfficiencyKmPerL: isNaN(fuelEff) || fuelEff <= 0 ? 5.4 : fuelEff,
         fuelEfficiencyUnit: sanitizeCellString(normalized["fuel_efficiency_unit"] || "km_per_litre"),
         vehicleType: sanitizeCellString(normalized["vehicle_type"] || "medium_truck"),
+        driverName: sanitizeCellString(normalized["driver_name"] || normalized["driver"] || normalized["operator"]) || undefined,
+        licensePlate: sanitizeCellString(normalized["license_plate"] || normalized["plate"] || normalized["registration_number"]) || undefined,
         available: normalized["available"] !== false && normalized["available"] !== "false" && normalized["available"] !== 0,
         shiftStartTime: shiftStart,
         shiftEndTime: shiftEnd,

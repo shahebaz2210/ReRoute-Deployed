@@ -344,6 +344,43 @@ function VehicleDetailContent() {
   const [vehicle, setVehicle] = useState<VehicleFleetDetail>(defaultVehicle);
 
   useEffect(() => {
+    // Enrich with real fleet vehicle telemetry and uploaded specs
+    fetch("/api/v1/fleet")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data && Array.isArray(json.data)) {
+          const match = json.data.find(
+            (v: any) =>
+              v.id.toLowerCase() === rawId.toLowerCase() ||
+              v.vehicleCode.toLowerCase() === rawId.toLowerCase()
+          );
+          if (match) {
+            setVehicle((prev) => ({
+              ...prev,
+              id: match.id,
+              code: match.vehicleCode,
+              name: match.makeModel,
+              model: match.makeModel,
+              plate: match.licensePlate,
+              driver: match.driverName,
+              maxWeightKg: match.maxWeightKg,
+              maxVolumeM3: match.maxVolumeM3,
+              fuelEfficiencyKmPerL: match.fuelEfficiencyKmPerL,
+              currentWeightKg: match.currentWeightKg,
+              currentVolumeM3: match.currentVolumeM3,
+              totalDistanceKm: match.distanceKm,
+              estFuelLiters: match.fuelConsumedLiters,
+              estCo2Kg: match.co2EmittedKg,
+              currentLat: match.currentLatitude,
+              currentLng: match.currentLongitude,
+              locationName: match.currentLocationName,
+              status: match.status === "ACTIVE" ? "ACTIVE_VEHICLE" : match.status,
+            }));
+          }
+        }
+      })
+      .catch((err) => console.warn("Using offline vehicle data store:", err));
+
     // Attempt to enrich with active plan's real optimized routes and stops
     fetch("/api/v1/plans")
       .then((res) => res.json())

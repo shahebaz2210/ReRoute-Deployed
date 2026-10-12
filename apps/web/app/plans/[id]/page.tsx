@@ -21,13 +21,14 @@ import {
   Fuel,
 } from "lucide-react";
 import { FleetMap, GeoMarker, GeoRoute } from "@/components/map/fleet-map";
+import { FLEET_ROUTE_PALETTE } from "@/lib/plans/store";
 
 function buildMapData(plan: any): { geoMarkers: GeoMarker[]; geoRoutes: GeoRoute[] } {
   if (!plan) return { geoMarkers: [], geoRoutes: [] };
 
   const geoMarkers: GeoMarker[] = [];
   const geoRoutes: GeoRoute[] = [];
-  const palette = ["#2563EB", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899"];
+  const palette = FLEET_ROUTE_PALETTE;
 
   // 1. Central Depot Center Marker in India
   if (plan.depot && typeof plan.depot.lat === "number" && typeof plan.depot.lng === "number") {
@@ -66,6 +67,7 @@ function buildMapData(plan: any): { geoMarkers: GeoMarker[]; geoRoutes: GeoRoute
             label: st.locationName || `Stop #${st.stopNumber}`,
             sublabel: st.address,
             orderRef: st.orderRef,
+            color,
             stopNumber: st.stopNumber,
             status: st.status,
           });
@@ -100,6 +102,7 @@ function buildMapData(plan: any): { geoMarkers: GeoMarker[]; geoRoutes: GeoRoute
         lng: vehicleLng + 0.001 * (rIdx === 0 ? -1 : 1),
         label: `${r.vehicleCode} (${r.driverName})`,
         vehicleCode: r.vehicleCode,
+        color,
         status: r.isFailed ? "DELAYED_ROUTE" : "ACTIVE_VEHICLE",
       });
     }
@@ -235,58 +238,69 @@ function PlanDetailContent() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {plan?.routes?.map((route: any) => (
-              <div
-                key={route.vehicleId}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col gap-3 shadow-xs"
-              >
-                <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">
-                      <Truck className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <Link
-                        href={`/fleet/${route.vehicleId}`}
-                        className="font-bold text-sm text-[var(--foreground)] hover:underline hover:text-primary flex items-center gap-1"
+            {plan?.routes?.map((route: any, rIdx: number) => {
+              const color = FLEET_ROUTE_PALETTE[rIdx % FLEET_ROUTE_PALETTE.length];
+              return (
+                <div
+                  key={route.vehicleId}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col gap-3 shadow-xs"
+                >
+                  <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="p-1.5 rounded-lg text-white shadow-2xs"
+                        style={{ backgroundColor: color }}
                       >
-                        <span>{route.vehicleCode}</span>
-                        <ArrowRight className="h-3 w-3 opacity-60" />
-                      </Link>
-                      <p className="text-[11px] text-[var(--muted-foreground)]">Driver: {route.driverName}</p>
+                        <Truck className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <Link
+                          href={`/fleet/${route.vehicleId}`}
+                          className="font-bold text-sm hover:underline flex items-center gap-1"
+                          style={{ color }}
+                        >
+                          <span>{route.vehicleCode}</span>
+                          <ArrowRight className="h-3 w-3 opacity-60" />
+                        </Link>
+                        <p className="text-[11px] text-[var(--muted-foreground)]">Driver: {route.driverName}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-mono font-semibold" style={{ color }}>{route.weightUtilizationPercent}% Load</span>
+                      <p className="text-[10px] text-[var(--muted-foreground)]">{route.distanceKm} km · {route.fuelConsumedLiters ? `${route.fuelConsumedLiters}L fuel` : `${route.stopsCount} stops`}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs font-mono font-semibold text-[var(--primary)]">{route.weightUtilizationPercent}% Load</span>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">{route.distanceKm} km · {route.fuelConsumedLiters ? `${route.fuelConsumedLiters}L fuel` : `${route.stopsCount} stops`}</p>
-                  </div>
-                </div>
 
-                {/* Stops timeline */}
-                <div className="space-y-2 mt-1">
-                  {route.stops?.map((stop: any) => (
-                    <div
-                      key={stop.stopNumber}
-                      className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--surface-secondary)] text-xs"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-[var(--muted-foreground)]">#{stop.stopNumber}</span>
-                        <div>
-                          <span className="font-medium text-[var(--foreground)]">{stop.locationName}</span>
-                          {stop.orderRef && (
-                            <span className="ml-2 font-mono text-[10px] text-[var(--primary)] font-semibold">{stop.orderRef}</span>
-                          )}
+                  {/* Stops timeline */}
+                  <div className="space-y-2 mt-1">
+                    {route.stops?.map((stop: any) => (
+                      <div
+                        key={stop.stopNumber}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--surface-secondary)] text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span className="font-mono font-bold text-[var(--muted-foreground)]">#{stop.stopNumber}</span>
+                          <div>
+                            <span className="font-medium text-[var(--foreground)]">{stop.locationName}</span>
+                            {stop.orderRef && (
+                              <span className="ml-2 font-mono text-[10px] text-[var(--primary)] font-semibold">{stop.orderRef}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-[var(--muted-foreground)]">ETA {stop.eta}</span>
+                          <StatusBadge status={stop.status === "COMPLETED" ? "DELIVERED" : stop.status} size="sm" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-xs text-[var(--muted-foreground)]">ETA {stop.eta}</span>
-                        <StatusBadge status={stop.status === "COMPLETED" ? "DELIVERED" : stop.status} size="sm" />
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
